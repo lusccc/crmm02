@@ -72,7 +72,11 @@ class MultimodalData:
         # note 'RF': {} is just a placeholder, we don't actually use RF. but we want to transform feature after `fit`
         # also note that RF in autogluon.tabular.models.rf.rf_model.RFModel._preprocess is not normalized!
         # predictor = TabularPredictor(label=self.label_col).fit(self.raw_train_data, hyperparameters={'RF': {}})
-        predictor = TabularPredictor.load("AutogluonModels/ag-20231026_024542/")
+        # predictor = TabularPredictor.load("AutogluonModels/ag-20231026_024542/")
+        # predictor = TabularPredictor.load("AutogluonModels/ag-20231030_092803")
+        autogluon_res_dir = self.data_args.feature_transform_res_dir
+        predictor = TabularPredictor.load(autogluon_res_dir) if autogluon_res_dir else TabularPredictor(
+            label=self.label_col).fit(self.raw_train_data, hyperparameters={'RF': {}})
         tfm_train_feats = predictor.transform_features(self.raw_train_data)
         tfm_test_feats = predictor.transform_features(self.raw_test_data)
         tfm_val_feats = predictor.transform_features(self.raw_val_data) if self.has_val else None

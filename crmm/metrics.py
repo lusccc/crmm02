@@ -72,7 +72,6 @@ def calc_classification_metrics(p: EvalPrediction, save_cm_fig_dir=None):
         }
 
     logger.info(result)
-    logger.info(f'\n{cm}')
     if save_cm_fig_dir:
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
         disp.plot()

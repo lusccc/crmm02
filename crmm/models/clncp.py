@@ -18,7 +18,6 @@ logger = logging.get_logger(__name__)
 
 @dataclass
 class CLNCPOutput(ModelOutput):
-
     loss: Optional[torch.FloatTensor] = None
     logits_per_num_cat: torch.FloatTensor = None
     logits_per_text: torch.FloatTensor = None
@@ -30,6 +29,7 @@ class CLNCPOutput(ModelOutput):
         return tuple(
             self[k] for k in self.keys()
         )
+
 
 class CLNCPPreTrainedModel(PreTrainedModel):
     config_class = CLNCPConfig
@@ -89,7 +89,7 @@ class CLNCP(CLNCPPreTrainedModel):
         if return_loss and not self.pretrained:
             loss = clip_loss(logits_per_text)
         else:
-            loss = torch.tensor(0.)
+            loss = torch.tensor(0.)  # make compatible with hf trainer!
 
         probs = logits_per_num_cat.softmax(dim=1)  # we can take the softmax to get the label probabilities
 

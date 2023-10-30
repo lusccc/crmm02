@@ -14,10 +14,10 @@ class CrmmTrainingArguments(TrainingArguments):
     # @@@@ 1. our args
     # report_to: str = field(default='wandb')
     root_dir: str = field(default='./exps', metadata={"help": "parent dir of output_dir"})
-    pretrained_model_dir: str = field(default='./exps/pretrain_2023-10-26_14-34-34_din/output', metadata={"help": ""})
+    pretrained_model_dir: str = field(default='', metadata={"help": ""})
     auto_create_model_dir: bool = field(default=True, metadata={"help": "auto create model dir in root_dir"})
     save_excel_path: str = field(default='./excel/res.xlsx', metadata={"help": ""})
-    task: str = field(default="classification_evaluate", metadata={"help": "", })
+    task: str = field(default="eval_prediction_after_pretraining", metadata={"help": "", })
     # task: str = field(default="pretrain", metadata={"help": "", })
     use_modality: str = field(default="num,cat,text", metadata={"help": ""})
     modality_fusion_method: str = field(default="conv", metadata={"help": ""})
@@ -42,8 +42,8 @@ class CrmmTrainingArguments(TrainingArguments):
     )
     num_train_epochs: float = field(default=100, metadata={"help": "Total number of training epochs to perform."})
     logging_steps: int = field(default=10, metadata={"help": "Log every X updates steps."})
-    no_cuda: bool = field(default=True, metadata={"help": "Do not use CUDA even when it is available"})
-    per_device_train_batch_size: int = field(default=20, metadata={
+    no_cuda: bool = field(default=False, metadata={"help": "Do not use CUDA even when it is available"})
+    per_device_train_batch_size: int = field(default=200, metadata={
         "help": "Batch size per GPU/TPU core/CPU for training."})
     evaluation_strategy: Union[IntervalStrategy, str] = field(default="epoch", metadata={
         "help": "The evaluation strategy to use."}, )  # metric will be checked in early-stopping
@@ -117,6 +117,8 @@ class MultimodalDataArguments:
     data_path: str = field(default=f'./data/cr', metadata={
         'help': 'the path to the csv file containing the dataset'})
     use_val: bool = field(default=True)
+    feature_transform_res_dir: str = field(default=None, metadata={
+        "help": "the path to the directory containing the feature transformation results from Autogluon"})
     label_col: str = field(default='binaryRating', metadata={
         'help': 'the name of the label column'})
     text_cols: str = field(default='GPT_description', metadata={
@@ -125,14 +127,15 @@ class MultimodalDataArguments:
         'help': 'sklearn numerical transformer to preprocess numerical data',
         'choices': ['yeo_johnson', 'box_cox', 'quantile_normal', 'standard', 'none']})
     natural_language_labels: str = field(
-        default='Financially struggling company, credit-challenged enterprise, struggling business with weak credit, '
-                'company with a poor credit rating, underperforming business with credit issues, '
-                'enterprise with subpar creditworthiness, company facing credit difficulties,'
-                ' business with a tarnished credit history, struggling company with credit limitations,'
-                ' enterprise experiencing credit challenges. @ Financially sound company, '
-                'creditworthy enterprise, strong business with good credit, company with a solid credit rating, '
-                'profitable business with strong credit, enterprise with excellent creditworthiness, '
-                'company with a clean credit history, successful company with strong credit, '
-                'business with robust credit standing, enterprise with a solid track record of credit.',
+        # default='Financially struggling company, credit-challenged enterprise, struggling business with weak credit, '
+        #         'company with a poor credit rating, underperforming business with credit issues, '
+        #         'enterprise with subpar creditworthiness, company facing credit difficulties,'
+        #         ' business with a tarnished credit history, struggling company with credit limitations,'
+        #         ' enterprise experiencing credit challenges. @ Financially sound company, '
+        #         'creditworthy enterprise, strong business with good credit, company with a solid credit rating, '
+        #         'profitable business with strong credit, enterprise with excellent creditworthiness, '
+        #         'company with a clean credit history, successful company with strong credit, '
+        #         'business with robust credit standing, enterprise with a solid track record of credit.',
+        default='Poor credit@Good credit',
         metadata={
             'help': ''})

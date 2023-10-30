@@ -1,6 +1,8 @@
+import glob
 import json
 import os
 import random
+import re
 from datetime import datetime
 
 import numpy as np
@@ -78,16 +80,11 @@ def main(clip_text_model_args: CLIPTextModelArguments,
                                    pretrained=False)
         if {'text', 'num', 'cat'} == set(training_args.use_modality):
             model = CLNCP(model_config)
-    elif task == 'classification_evaluate':
-        # finetune, model load from saved dir
+    elif task == 'eval_prediction_after_pretraining':
+        # prediction_after_pretraining, model load from saved dir
         model_config = CLNCPConfig.from_pretrained(training_args.pretrained_model_dir)
         model = CLNCP.from_pretrained(training_args.pretrained_model_dir, config=model_config)
 
-    elif task == 'fine_tune_from_scratch':
-        model_config = CLNCPConfig(**default_model_config_params,
-                                   use_hf_pretrained_bert=False,
-                                   freeze_bert_params=clip_text_model_args.freeze_bert_params,
-                                   pretrained=True)  # manually set pretrained to True!
     else:
         raise ValueError(f'Unknown task: {task}')
     logger.info(f'\n{model}')
@@ -98,27 +95,19 @@ def main(clip_text_model_args: CLIPTextModelArguments,
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=test_dataset if 'classification' in task else val_dataset,  # can be None in pretrain
-        compute_metrics=calc_classification_metrics if 'classification' in task else None,
+        eval_dataset=test_dataset if 'prediction' in task else val_dataset,  # can be None in pretrain
+        compute_metrics=calc_classification_metrics if 'prediction' in task else None,
         callbacks=[EarlyStoppingCallback(training_args.patience)] if 'fine_tune' in task else None,
         data_collator=MultimodalPretrainCollator(tokenizer, clip_text_model_args.max_seq_length) if
-        'pretrain' in task else MultimodalClassificationCollator(tokenizer, clip_text_model_args.max_seq_length,
+        'pretrain' == task else MultimodalClassificationCollator(tokenizer, clip_text_model_args.max_seq_length,
                                                                  # note bad or good label is split with @
                                                                  data_args.natural_language_labels.split('@')),
     )
+    trainer = get_trainer(model)
     if task == 'pretrain':
-        trainer = get_trainer(model)
         trainer.train()
-        # should set pretrained to True. Hence, we can later continue to finetune the model
+        # should set pretrained to True. Hence, we can load in later tasks.
         model.config.pretrained = True
-        trainer.save_model()
-    elif task == 'classification_evaluate':
-        trainer = get_trainer(model)
-        trainer.evaluate()
-
-    else:
-        trainer = get_trainer(model)
-        trainer.train()
         trainer.save_model()
 
     best_model_checkpoint = trainer.state.best_model_checkpoint
@@ -130,29 +119,34 @@ def main(clip_text_model_args: CLIPTextModelArguments,
     if task != 'pretrain':
         val_best_results = trainer.evaluate(eval_dataset=val_dataset)
         test_results = trainer.evaluate(eval_dataset=test_dataset)
-        if task == 'fine_tune':
+        if task == 'eval_prediction_after_pretraining':
             with open(os.path.join(training_args.pretrained_model_dir, 'training_arguments.json')) as file:
                 training_arguments = json.load(file)
             pretrain_batch_size = training_arguments['per_device_train_batch_size']
             pretrain_epoch = training_arguments['num_train_epochs']
-        else:
-            pretrain_step = None
-            pretrain_batch_size = None
-            pretrain_epoch = None
+            pretrain_best_step = int(
+                # to get dir name like 'checkpoint-2500' to infer best step
+                re.search('checkpoint-(\d+)', glob.glob(f'{training_args.pretrained_model_dir}/*/')[0]).group(1))
+            pretrain_best_epoch = pretrain_best_step / pretrain_batch_size
 
         basic_info = {
             'dataset': data_args.dataset_name,
             'dataset_info': data_args.dataset_info,
             'data_path': data_args.data_path,
-            'bert_model': clip_text_model_args.clip_text_model_name,
+            'clip_text_model': None,  # we train with our credit description data! did not use the openai pretrained one
             'numerical': 'num' in training_args.use_modality,
             'category': 'cat' in training_args.use_modality,
             'text': 'text' in training_args.use_modality,
-            'pretrain_batch_size': pretrain_batch_size,
-            'pretrain_epoch': pretrain_epoch,
-            'fine_tune_best_step': best_step,
-            'fine_tune_batch_size': training_args.per_device_train_batch_size,
-            'fine_tune_epoch': training_args.num_train_epochs,
+            'modality_fusion_method': model_config.modality_fusion_method,
+            'this_exp_path': training_args.output_dir,
+            'natural_language_labels': data_args.natural_language_labels if task == 'eval_prediction_after_pretraining' else None,
+            'pretrain_model_path': training_args.pretrained_model_dir if task == 'eval_prediction_after_pretraining' else None,
+            'pretrain_batch_size': pretrain_batch_size if task == 'eval_prediction_after_pretraining' else None,
+            'pretrain_epoch': pretrain_epoch if task == 'eval_prediction_after_pretraining' else None,
+            'pretrain_model_best_epoch': pretrain_best_epoch if task == 'eval_prediction_after_pretraining' else None,
+            'classification_train_best_step': None if task == 'eval_prediction_after_pretraining' else best_step,
+            'classification_train_batch_size': None if task == 'eval_prediction_after_pretraining' else training_args.per_device_train_batch_size,
+            'classification_train_epoch': None if task == 'eval_prediction_after_pretraining' else training_args.num_train_epochs,
         }
 
         save_excel(val_best_results, test_results, basic_info, training_args.save_excel_path)
@@ -166,7 +160,7 @@ def save_excel(val_best_results, test_results, basic_info, excel_path):
     if os.path.exists(excel_path):
         book = openpyxl.load_workbook(excel_path)
         writer = pd.ExcelWriter(excel_path, engine='openpyxl')
-        writer.book = book
+        writer._book = book
 
         if 'Sheet1' in book.sheetnames:
             startrow = writer.sheets['Sheet1'].max_row
