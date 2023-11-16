@@ -26,7 +26,9 @@ def setup(exp_args: CrmmTrainingArguments, data_args=None, model_args=None):
         output_dir = os.path.join(root_dir, exp_args.task)
 
         formatted_timestamp = initial_timestamp.strftime("%Y-%m-%d_%H-%M-%S")
-        rand_suffix = "".join(random.choices(string.ascii_letters + string.digits, k=3))
+        random_generator = random.Random()  # 创建新的随机数生成器对象
+        random_generator.seed()  # 重新设置随机种子
+        rand_suffix = "".join(random_generator.choices(string.ascii_letters + string.digits, k=3))
         output_dir += "_" + formatted_timestamp + "_" + rand_suffix
         exp_args.output_dir = os.path.join(output_dir, 'output')
         exp_args.logging_dir = os.path.join(output_dir, 'logging')

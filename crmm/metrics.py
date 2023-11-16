@@ -16,8 +16,12 @@ logger = logging.get_logger('transformers')
 
 
 def calc_classification_metrics(p: EvalPrediction, save_cm_fig_dir=None):
-    pred_labels = np.argmax(p.predictions, axis=1)
-    pred_scores = softmax(p.predictions, axis=1)[:, 1]
+    if isinstance(p.predictions, tuple):
+        pred_labels = np.argmax(p.predictions[0], axis=1)
+        pred_scores = softmax(p.predictions[0], axis=1)[:, 1]
+    else:
+        pred_labels = np.argmax(p.predictions, axis=1)
+        pred_scores = softmax(p.predictions, axis=1)[:, 1]
     labels = p.label_ids
     if len(np.unique(labels)) == 2:  # binary classification
         roc_auc_pred_score = roc_auc_score(labels, pred_scores)

@@ -39,7 +39,7 @@ class JointFeatureExtractor(nn.Module):
             self.ws[modality] = nn.Parameter(torch.ones(1))
 
         self.modality_fusion_method = modality_fusion_method
-        self.num_fuse_modalities = 2  # only cat and num are fused!
+        self.num_fuse_modalities = len(modality_feat_dims)
         if self.modality_fusion_method == 'conv':
             self.conv1d = nn.Conv1d(in_channels=self.num_fuse_modalities, out_channels=1, kernel_size=3, padding=1)
             self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
@@ -49,6 +49,10 @@ class JointFeatureExtractor(nn.Module):
         self.flatten = nn.Flatten()
 
     def forward(self, x):
+        if len(x) != self.num_fuse_modalities:
+            # if input miss a modality, create data with 0s !
+            missing_modality = [m for m in self.ws if m not in x][0]
+            x[missing_modality] = torch.zeros_like(list(x.values())[0])
         if self.modality_fusion_method == 'conv':
             x_aligned = []  # aligned features to hidden_dim
             for modality, x in x.items():
