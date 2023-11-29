@@ -23,7 +23,7 @@ class ResidualBlock(nn.Module):
         out = self.fc2(out)
         out = self.bn2(out)
         out += residual
-        out = self.relu2(out)
+        # out = self.relu2(out)
         out = self.dropout2(out)
         return out
 

@@ -26,25 +26,28 @@ class LanguageModel(nn.Module):
         self.freeze_params = freeze_params
 
         if self.load_hf_pretrained:
-            self.text_model = RobertaModel.from_pretrained(self.pretrained_model_name_or_path,
-                                                           local_files_only=self.local_files_only,
-                                                           cache_dir=self.cache_dir)
+            self.roberta = RobertaModel.from_pretrained(self.pretrained_model_name_or_path,
+                                                        local_files_only=self.local_files_only,
+                                                        cache_dir=self.cache_dir)
         else:
             # the config we will not be modified, hence still load from hf!
-            text_model_config = RobertaConfig.from_pretrained(self.pretrained_model_name_or_path,
+            language_model_config = RobertaConfig.from_pretrained(self.pretrained_model_name_or_path,
                                                               local_files_only=self.local_files_only,
                                                               cache_dir=self.cache_dir)
-            self.text_model = RobertaModel(config=text_model_config)
+            self.roberta = RobertaModel(config=language_model_config)
 
         if self.freeze_params:
             # freeze clip_text params, only train the classifier layer
-            self.text_model.requires_grad_(False)
+            self.roberta.requires_grad_(False)
             logger.warning("text model params are frozen!")
+        else:
+            self.roberta.requires_grad_(True)
+            logger.warning("text model params are now unfrozen!")
 
-    def forward(self, input):
-        outputs = self.text_model(**input)
+    def forward(self, inputs):
+        outputs = self.roberta(**inputs)
         sequence_output = outputs[0][:, 0, :]  # take <s> token (equiv. to [CLS])
         return sequence_output
 
     def get_output_dim(self):
-        return self.text_model.config.hidden_size
+        return self.roberta.config.hidden_size

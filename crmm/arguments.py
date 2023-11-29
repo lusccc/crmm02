@@ -15,14 +15,17 @@ class CrmmTrainingArguments(TrainingArguments):
     # report_to: str = field(default='wandb')
     root_dir: str = field(default='./exps', metadata={"help": "parent dir of output_dir"})
     pretrained_model_dir: str = field(default=None, metadata={"help": ""})
+    finetuned_model_dir: str = field(default=None, metadata={"help": "can be load for only evaluation"})
     auto_create_model_dir: bool = field(default=True, metadata={"help": "auto create model dir in root_dir"})
     save_excel_path: str = field(default='./excel/res.xlsx', metadata={"help": ""})
     task: str = field(default=None, metadata={"help": "", })
     use_modality: str = field(default=None, metadata={"help": ""})
     fuse_modality: str = field(default=None, metadata={"help": ""})
     modality_fusion_method: str = field(default=None, metadata={"help": ""})
+    contrastive_targets: str = field(default=None, metadata={"help": ""})
     loss_weights: str = field(default="1,1,1", metadata={"help": ""})
     patience: int = field(default=1000, metadata={"help": ""})
+    only_eval: bool = field(default=False, metadata={"help": ""})
 
     # @@@@ 2. huggingface args
     # output_dir and logging_dir will be auto set in runner_setup.setup
@@ -77,6 +80,8 @@ class CrmmTrainingArguments(TrainingArguments):
             self.loss_weights = [int(w.strip()) for w in self.loss_weights.split(',')]
         if isinstance(self.fuse_modality, str):
             self.fuse_modality = [m.strip() for m in self.fuse_modality.split(',')]
+        if isinstance(self.contrastive_targets, str):
+            self.contrastive_targets = [m.strip() for m in self.contrastive_targets.split(',')]
 
         if self.task == 'pretrain' or self.task == 'continue_pretrain':
             self.metric_for_best_model = 'loss'
@@ -96,10 +101,10 @@ class CrmmTrainingArguments(TrainingArguments):
 
 
 @dataclass
-class TextModelArguments:
-    text_model_name: str = field(default='', metadata={
+class LanguageModelArguments:
+    language_model_name: str = field(default='', metadata={
         "help": "Path to pretrained model or model identifier from huggingface.co/models"})
-    freeze_text_params: bool = field(default=True, metadata={
+    freeze_language_model_params: bool = field(default=True, metadata={
         "help": "Whether to freeze the clip text model parameters"})
     max_seq_length: int = field(default=512, metadata={
         "help": "The maximum length (in number of tokens) for the inputs to the CLIP text model"})

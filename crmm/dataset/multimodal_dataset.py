@@ -40,7 +40,7 @@ class MultimodalDataset(Dataset):
         return self.label_list
 
 
-class MultimodalPretrainCollator:
+class MultimodalNormalCollator:
 
     def __init__(self, tokenizer, max_token_length) -> None:
         self.tokenizer = tokenizer
@@ -57,16 +57,19 @@ class MultimodalPretrainCollator:
 
         nums = [f['num'] for f in features]
 
+        labels = [f['labels'] for f in features]
+
         data = {
             'text': text_encodings.data,  # dict of input_ids and attention_mask
             'cat': cat_encodings.data,  # dict of input_ids and attention_mask
-            'num': torch.stack(nums)
+            'num': torch.stack(nums),
+            'labels': torch.stack(labels)
         }
 
         return data
 
 
-class MultimodalClassificationCollator:
+class MultimodalClipPairMatchCollator:
 
     def __init__(self, tokenizer, max_token_length=None, natural_language_labels=None) -> None:
         self.tokenizer = tokenizer

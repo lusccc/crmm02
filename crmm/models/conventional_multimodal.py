@@ -8,14 +8,13 @@ from crmm.models.layer_utils import hf_loss_func, get_classifier
 
 class CMMConfig(CLNCPConfig):
 
-    def __init__(self, n_labels=0, num_feat_dim=0, nunique_cat_nums=0, cat_emb_dims=0, use_modality=None,
-                 fuse_modality=None, modality_fusion_method=None, max_text_length=None, loss_weights=None,
-                 text_model_cache_dir=None, text_model_name=None, text_model_local_files_only=None,
-                 freeze_text_params=False, pretrained=False, **kwargs):
-        super().__init__(n_labels, num_feat_dim, nunique_cat_nums, cat_emb_dims, use_modality, fuse_modality,
-                         modality_fusion_method, max_text_length, loss_weights, text_model_cache_dir,
-                         text_model_name, text_model_local_files_only, freeze_text_params, pretrained,
-                         **kwargs)
+    def __init__(self, n_labels=0, num_feat_dim=0, use_modality=None, fuse_modality=None, modality_fusion_method=None,
+                 max_text_length=None, loss_weights=None, language_model_cache_dir=None, language_model_name=None,
+                 language_model_local_files_only=None, load_hf_pretrained=True, freeze_language_model_params=False,
+                 pretrained=False, multitask=False, **kwargs):
+        super().__init__(n_labels, num_feat_dim, use_modality, fuse_modality, modality_fusion_method, max_text_length,
+                         loss_weights, language_model_cache_dir, language_model_name, language_model_local_files_only,
+                         load_hf_pretrained, freeze_language_model_params, pretrained, multitask, **kwargs)
 
 
 class CMMPreTrainedModel(PreTrainedModel):

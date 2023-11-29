@@ -56,9 +56,6 @@ def calc_classification_metrics(p: EvalPrediction, save_cm_fig_dir=None):
                   'type1_acc': type1_acc,  # 加入type1_acc
                   'type2_acc': type2_acc,  # 加入type2_acc
                   'cm': str(cm.tolist())}
-
-        logger.info(result)
-        logger.info(f'\n{cm}')
     else:
         acc = (pred_labels == labels).mean()
         precision, recall, f1, support = precision_recall_fscore_support(labels, pred_labels)
@@ -74,7 +71,7 @@ def calc_classification_metrics(p: EvalPrediction, save_cm_fig_dir=None):
             "precision_mean": precision.mean(),
             "cm": str(cm.tolist())
         }
-
+    logger.info(f'\n{cm}')
     logger.info(result)
     if save_cm_fig_dir:
         disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
