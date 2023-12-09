@@ -32,7 +32,6 @@ class FeatureExtractorFactory:
         )
 
         if 'cat' in use_modality or 'text' in use_modality:
-
             if 'cat' in use_modality:
                 self.feature_extractors['cat'] = CatFeatureExtractor(language_model)
             if 'text' in use_modality:

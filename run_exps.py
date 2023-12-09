@@ -25,15 +25,17 @@ def create_exp_dirs(root_dir, task):
 
 class CommandRunner:
     def __init__(self, root_dir, task, per_device_train_batch_size, num_train_epochs, data_path, dataset_name,
-                 modality_fusion_method, freeze_language_model_params, use_modality, fuse_modality, language_model_name,
-                 load_hf_model_from_cache, contrastive_targets=None, pretrained_model_dir=None, save_excel_path=None,
-                 natural_language_labels=None):
+                 dataset_split_strategy, modality_fusion_method, freeze_language_model_params, use_modality,
+                 fuse_modality, language_model_name, load_hf_model_from_cache, contrastive_targets=None,
+                 pretrained_model_dir=None, save_excel_path=None, natural_language_labels=None,
+                 num_train_samples=None, train_years=None, test_years=None):
         self.root_dir = root_dir
         self.task = task
         self.per_device_train_batch_size = per_device_train_batch_size
         self.num_train_epochs = num_train_epochs
         self.data_path = data_path
         self.dataset_name = dataset_name
+        self.dataset_split_strategy = dataset_split_strategy
         self.modality_fusion_method = modality_fusion_method
         self.freeze_language_model_params = freeze_language_model_params
         self.use_modality = use_modality
@@ -44,6 +46,9 @@ class CommandRunner:
         self.pretrained_model_dir = pretrained_model_dir
         self.save_excel_path = save_excel_path
         self.natural_language_labels = natural_language_labels
+        self.num_train_samples = num_train_samples
+        self.train_years = train_years
+        self.test_years = test_years
 
         exp_dirs = create_exp_dirs(self.root_dir, self.task)
         self.output_dir, self.logging_dir = exp_dirs
@@ -58,6 +63,7 @@ class CommandRunner:
                    f"--num_train_epochs {self.num_train_epochs} "
                    f"--data_path {self.data_path} "
                    f"--dataset_name {self.dataset_name} "
+                   f"--dataset_split_strategy {self.dataset_split_strategy} "
                    f"--modality_fusion_method {self.modality_fusion_method} "
                    f"--freeze_language_model_params {self.freeze_language_model_params} "
                    f"--use_modality {self.use_modality} --fuse_modality {self.fuse_modality} "
@@ -71,6 +77,12 @@ class CommandRunner:
             command += f" --save_excel_path {self.save_excel_path}"
         if self.natural_language_labels is not None:
             command += f" --natural_language_labels {self.natural_language_labels}"
+        if self.num_train_samples is not None:
+            command += f" --num_train_samples {self.num_train_samples}"
+        if self.train_years is not None:
+            command += f" --train_years {self.train_years}"
+        if self.test_years is not None:
+            command += f" --test_years {self.test_years}"
         return command
 
     def run(self):
@@ -80,76 +92,369 @@ class CommandRunner:
         process.wait()
 
 
-def run_pre_epoch(repeat=1):
-    dataset = 'cr'
-    pre_batch_size = 115
-    finetune_batch_size = 240
-    # pre_epochs = [10, 20, 50, 60, 100, 120, 150, 170, 200, 220, 250, 300]
-    for i in range(repeat):
-        pre_epochs = [50, 70, 90, 120, 150]
-        for epoch in pre_epochs:
-            # @@@@ 1. pretrain
-            pre_command_runner = CommandRunner(
-                root_dir='./exps',
-                task='pretrain',
-                per_device_train_batch_size=str(pre_batch_size),
-                num_train_epochs=str(epoch),
-                data_path=f'./data/{dataset}',
-                dataset_name=dataset,
-                modality_fusion_method='conv',
-                freeze_language_model_params='True',
-                use_modality='num,cat,text',
-                fuse_modality='num,cat',
-                language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
-                load_hf_model_from_cache='True',
-                contrastive_targets='num,text'
-            )
-            pre_command_runner.run()
+# def run_pre_epoch(repeat=1):
+#     dataset = 'cr'
+#     pre_batch_size = 115
+#     finetune_batch_size = 240
+#     # pre_epochs = [10, 20, 50, 60, 100, 120, 150, 170, 200, 220, 250, 300]
+#     for i in range(repeat):
+#         pre_epochs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 40]
+#         for epoch in pre_epochs:
+#             # @@@@ 1. pretrain
+#             pre_command_runner = CommandRunner(
+#                 root_dir='./exps',
+#                 task='pretrain',
+#                 per_device_train_batch_size=str(pre_batch_size),
+#                 num_train_epochs=str(epoch),
+#                 data_path=f'./data/{dataset}',
+#                 dataset_name=dataset,
+#                 modality_fusion_method='conv',
+#                 freeze_language_model_params='True',
+#                 use_modality='num,cat,text',
+#                 fuse_modality='num,cat',
+#                 language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+#                 load_hf_model_from_cache='True',
+#                 contrastive_targets='num,text'
+#             )
+#             pre_command_runner.run()
+#
+#             # @@@@ 2. finetune
+#             finetune_command_runer = CommandRunner(
+#                 root_dir='./exps',
+#                 task='finetune_for_classification',  # !
+#                 per_device_train_batch_size=str(finetune_batch_size),
+#                 num_train_epochs=100,  # !
+#                 data_path=f'./data/{dataset}',
+#                 dataset_name=dataset,
+#                 modality_fusion_method='conv',
+#                 freeze_language_model_params='False',  # !
+#                 use_modality='num,cat,text',
+#                 fuse_modality='num,cat',
+#                 language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+#                 load_hf_model_from_cache='True',
+#                 pretrained_model_dir=pre_command_runner.output_dir,  # !
+#                 save_excel_path=f'./excel/{dataset}_res_pre_{epoch}_rep_{repeat}.xlsx',
+#             )
+#             finetune_command_runer.run()
+#
+#
+# def run_scratch(repeat=1):
+#     dataset = 'cr'
+#     pre_batch_size = 115
+#     finetune_batch_size = 350
+#     for i in range(repeat):
+#         command_runer = CommandRunner(
+#             root_dir='./exps',
+#             task='finetune_for_classification_from_scratch',  # !
+#             per_device_train_batch_size=str(finetune_batch_size),
+#             num_train_epochs=100,  # !
+#             data_path=f'./data/{dataset}',
+#             dataset_name=dataset,
+#             modality_fusion_method='conv',
+#             freeze_language_model_params='False',  # !
+#             use_modality='num,cat,text',
+#             fuse_modality='num,cat',
+#             language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+#             load_hf_model_from_cache='True',
+#             save_excel_path=f'./excel/{dataset}_res_scratch_rep_{repeat}.xlsx',
+#         )
+#         command_runer.run()
 
-            # @@@@ 2. finetune
-            finetune_command_runer = CommandRunner(
+
+def run_rolling_window(repeat=1, only_scratch=False, suffix=''):
+    dataset = 'cr'
+    pre_batch_size = 150
+    finetune_batch_size = 14
+    pretrain_epoch = 20
+    finetune_epoch = 100
+    num_train_samples = None
+    train_years_list = [
+        [2010, 2011, 2012],
+        [2011, 2012, 2013],
+        [2012, 2013, 2014],
+        [2013, 2014, 2015],
+    ]
+    test_year_List = [
+        [2013],
+        [2014],
+        [2015],
+        [2016],
+    ]
+    for i in range(repeat):
+        for train_years, test_years in zip(train_years_list, test_year_List):
+            train_years = ','.join(map(str, train_years))
+            test_years = ','.join(map(str, test_years))
+            save_excel_path = (f'./excel/{dataset}_res_rolling_window_'
+                               f'#{train_years}#_#{test_years}#_'
+                               f'scratch_and_'
+                               f'pre_{pretrain_epoch}_fine_{finetune_epoch}_rep_{repeat}'
+                               f'{suffix}.xlsx') \
+                if not only_scratch else (f'./excel/{dataset}_res_rolling_window_'
+                                          f'#{train_years}#_#{test_years}#_only_scratch_epoch_{finetune_epoch}'
+                                          f'{suffix}.xlsx')
+            # ######### scratch ################
+            scratch_command_runer = CommandRunner(
                 root_dir='./exps',
-                task='finetune_for_classification',  # !
+                task='finetune_for_classification_from_scratch',  # !
                 per_device_train_batch_size=str(finetune_batch_size),
-                num_train_epochs=100,  # !
+                num_train_epochs=finetune_epoch,  # !
                 data_path=f'./data/{dataset}',
                 dataset_name=dataset,
+                dataset_split_strategy='rolling_window',
                 modality_fusion_method='conv',
                 freeze_language_model_params='False',  # !
                 use_modality='num,cat,text',
                 fuse_modality='num,cat',
                 language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
                 load_hf_model_from_cache='True',
+                train_years=train_years,
+                test_years=test_years,
+                num_train_samples=num_train_samples,
+                save_excel_path=save_excel_path,
+            )
+            scratch_command_runer.run()
+
+            if only_scratch:
+                continue
+            # ######### pre fine ################
+            # @@@@ 1. pretrain
+            pre_command_runner = CommandRunner(
+                root_dir='./exps',
+                task='pretrain',
+                per_device_train_batch_size=str(pre_batch_size),
+                num_train_epochs=str(pretrain_epoch),
+                data_path=f'./data/{dataset}',
+                dataset_name=dataset,
+                dataset_split_strategy='rolling_window',
+                modality_fusion_method='conv',
+                freeze_language_model_params='True',
+                use_modality='num,cat,text',
+                fuse_modality='num,cat',
+                language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+                load_hf_model_from_cache='True',
+                contrastive_targets='num,text',
+                train_years=train_years,
+                test_years=test_years,
+                num_train_samples=num_train_samples,
+            )
+            pre_command_runner.run()
+            # @@@@ 2. finetune
+            finetune_command_runer = CommandRunner(
+                root_dir='./exps',
+                task='finetune_for_classification',  # !
+                per_device_train_batch_size=str(finetune_batch_size),
+                num_train_epochs=finetune_epoch,  # !
+                data_path=f'./data/{dataset}',
+                dataset_name=dataset,
+                dataset_split_strategy='rolling_window',
+                modality_fusion_method='conv',
+                freeze_language_model_params='False',  # !
+                use_modality='num,cat,text',
+                fuse_modality='num,cat',
+                language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+                load_hf_model_from_cache='True',
+                train_years=train_years,
+                test_years=test_years,
+                num_train_samples=num_train_samples,
                 pretrained_model_dir=pre_command_runner.output_dir,  # !
-                save_excel_path=f'./excel/{dataset}_res_pre_{epoch}_rep_{repeat}.xlsx',
+                save_excel_path=save_excel_path,
             )
             finetune_command_runer.run()
 
 
-def run_scratch(repeat=1):
+def run_random_split(repeat=1, only_scratch=False, suffix=''):
     dataset = 'cr'
-    pre_batch_size = 115
-    finetune_batch_size = 350
+    pre_batch_size = 300
+    finetune_batch_size = 300
+    pretrain_epoch = 20
+    finetune_epoch = 100
+    num_train_samples = None
     for i in range(repeat):
-        command_runer = CommandRunner(
+        save_excel_path = (f'./excel/{dataset}_res_random_split_'
+                           f'scratch_and_'
+                           f'pre_{pretrain_epoch}_fine_{finetune_epoch}_rep_{repeat}'
+                           f'{suffix}.xlsx') \
+            if not only_scratch else (f'./excel/{dataset}_res_random_split_'
+                                      f'only_scratch_epoch_{finetune_epoch}'
+                                      f'{suffix}.xlsx')
+        # ######### scratch ################
+        scratch_command_runer = CommandRunner(
             root_dir='./exps',
             task='finetune_for_classification_from_scratch',  # !
             per_device_train_batch_size=str(finetune_batch_size),
-            num_train_epochs=100,  # !
+            num_train_epochs=finetune_epoch,  # !
             data_path=f'./data/{dataset}',
             dataset_name=dataset,
+            dataset_split_strategy='random',
             modality_fusion_method='conv',
             freeze_language_model_params='False',  # !
             use_modality='num,cat,text',
             fuse_modality='num,cat',
             language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
             load_hf_model_from_cache='True',
-            save_excel_path=f'./excel/{dataset}_res_scratch_rep_{repeat}.xlsx',
+            num_train_samples=num_train_samples,
+            save_excel_path=save_excel_path,
+        )
+        scratch_command_runer.run()
+
+        if only_scratch:
+            continue
+        # ######### pre fine ################
+        # @@@@ 1. pretrain
+        pre_command_runner = CommandRunner(
+            root_dir='./exps',
+            task='pretrain',
+            per_device_train_batch_size=str(pre_batch_size),
+            num_train_epochs=str(pretrain_epoch),
+            data_path=f'./data/{dataset}',
+            dataset_name=dataset,
+            dataset_split_strategy='random',
+            modality_fusion_method='conv',
+            freeze_language_model_params='True',
+            use_modality='num,cat,text',
+            fuse_modality='num,cat',
+            language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+            load_hf_model_from_cache='True',
+            contrastive_targets='num,text',
+            num_train_samples=num_train_samples,
+        )
+        pre_command_runner.run()
+        # @@@@ 2. finetune
+        finetune_command_runer = CommandRunner(
+            root_dir='./exps',
+            task='finetune_for_classification',  # !
+            per_device_train_batch_size=str(finetune_batch_size),
+            num_train_epochs=finetune_epoch,  # !
+            data_path=f'./data/{dataset}',
+            dataset_name=dataset,
+            dataset_split_strategy='random',
+            modality_fusion_method='conv',
+            freeze_language_model_params='False',  # !
+            use_modality='num,cat,text',
+            fuse_modality='num,cat',
+            language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+            load_hf_model_from_cache='True',
+            num_train_samples=num_train_samples,
+            pretrained_model_dir=pre_command_runner.output_dir,  # !
+            save_excel_path=save_excel_path,
+        )
+        finetune_command_runer.run()
+
+
+def run_multitask_rolling(repeat=1, suffix=''):
+    dataset = 'cr'
+    finetune_batch_size = 500
+    finetune_epoch = 100
+    num_train_samples = None
+    train_years_list = [
+        [2010, 2011, 2012],
+        [2011, 2012, 2013],
+        [2012, 2013, 2014],
+        [2013, 2014, 2015],
+    ]
+    test_year_List = [
+        [2013],
+        [2014],
+        [2015],
+        [2016],
+    ]
+    for i in range(repeat):
+        for train_years, test_years in zip(train_years_list, test_year_List):
+            train_years = ','.join(map(str, train_years))
+            test_years = ','.join(map(str, test_years))
+            save_excel_path = (f'./excel/{dataset}_res_rolling_window_'
+                               f'#{train_years}#_#{test_years}#_'
+                               f'multitask_epoch_{finetune_epoch}_rep_{repeat}{suffix}.xlsx')
+            command_runer = CommandRunner(
+                root_dir='./exps',
+                task='clip_multi_task_classification',  # !
+                per_device_train_batch_size=str(finetune_batch_size),
+                num_train_epochs=finetune_epoch,  # !
+                data_path=f'./data/{dataset}',
+                dataset_name=dataset,
+                dataset_split_strategy='rolling_window',
+                modality_fusion_method='conv',
+                freeze_language_model_params='False',  # !
+                use_modality='num,cat,text',
+                fuse_modality='num,cat',
+                language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+                load_hf_model_from_cache='True',
+                train_years=train_years,
+                test_years=test_years,
+                num_train_samples=num_train_samples,
+                save_excel_path=save_excel_path,
+            )
+            command_runer.run()
+            # print(command_runer.to_command())
+
+
+def run_multitask_random_split(repeat=1, suffix=''):
+    dataset = 'cr2'
+    finetune_batch_size = 300
+    finetune_epoch = 100
+    num_train_samples = None
+    for i in range(repeat):
+        save_excel_path = (f'./excel/{dataset}_res_random_split_'
+                           f'multitask_epoch_{finetune_epoch}_rep_{repeat}{suffix}.xlsx')
+        # ######### scratch ################
+        command_runer = CommandRunner(
+            root_dir='./exps',
+            task='clip_multi_task_classification',  # !
+            per_device_train_batch_size=str(finetune_batch_size),
+            num_train_epochs=finetune_epoch,  # !
+            data_path=f'./data/{dataset}',
+            dataset_name=dataset,
+            dataset_split_strategy='random',
+            modality_fusion_method='conv',
+            freeze_language_model_params='False',  # !
+            use_modality='num,cat,text',
+            fuse_modality='num,cat',
+            language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+            load_hf_model_from_cache='True',
+            num_train_samples=num_train_samples,
+            save_excel_path=save_excel_path,
         )
         command_runer.run()
+        # print(command_runer.to_command())
+
+
+def run_benchmark_rolling_window(repeat=10, dataset=None):
+    train_years_list = [
+        [2010, 2011, 2012],
+        [2011, 2012, 2013],
+        [2012, 2013, 2014],
+        [2013, 2014, 2015],
+    ]
+    test_year_List = [
+        [2013],
+        [2014],
+        [2015],
+        [2016],
+    ]
+    for i in range(repeat):
+        for train_years, test_years in zip(train_years_list, test_year_List):
+            train_years = ','.join(map(str, train_years))
+            test_years = ','.join(map(str, test_years))
+            save_excel_path = (f'./excel/{dataset}_res_benchmark_rolling_window_'
+                               f'#{train_years}#_#{test_years}#_rep_{i}.xlsx')
+            command = (f"python benchmark_model_comparison.py"
+                       f" --dataset_name {dataset}"
+                       f" --data_path ./data/{dataset}"
+                       f" --excel_path {save_excel_path}"
+                       f" --dataset_split_strategy rolling_window"
+                       f" --train_years {train_years}"
+                       f" --test_years {test_years}")
+            print(command)
+            process = subprocess.Popen(command, shell=True)
+            process.wait()
 
 
 if __name__ == '__main__':
-    run_pre_epoch(repeat=10)
-    run_scratch(repeat=10)
-
+    # run_pre_epoch(repeat=5)
+    # run_scratch(repeat=10)
+    # run_rolling_window(repeat=5, only_scratch=True, suffix='hpp')
+    run_multitask_rolling(5, suffix='_cat_sent')
+    # run_benchmark_rolling_window('cr2')
+    # run_benchmark_rolling_window(10, 'cr')
+    # run_random_split(2, True, '_onoi')
+    # run_multitask_random_split(5,  '_fck')

@@ -51,7 +51,13 @@ class MultimodalNormalCollator:
         text_encodings = self.tokenizer(texts, padding=True, truncation=True,
                                         max_length=self.max_token_length, return_tensors="pt")
 
-        cats = ['[SEP]'.join(f['cat'].values) for f in features]
+        # cats = ['[SEP]'.join(f['cat'].values) for f in features]
+        template = "The company %s with symbol %s and CIK %s is rated by %s in the sector of %s."
+        cats = []
+        for f in features:
+            cat_sentence = template%(f['cat']['Name'], f['cat']['Symbol'],f['cat']['CIK'], f['cat']['Rating Agency Name'], f['cat']['Sector'])
+            cats.append(cat_sentence)
+
         cat_encodings = self.tokenizer(cats, padding=True, truncation=True,
                                        max_length=self.max_token_length, return_tensors="pt")
 

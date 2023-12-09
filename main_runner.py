@@ -125,11 +125,16 @@ def main(language_model_args: LanguageModelArguments,
         compute_metrics=calc_classification_metrics if 'prediction' in task or 'classification' in task else None,
         callbacks=[EarlyStoppingCallback(training_args.patience)] if 'classification' in task else None,
         data_collator=MultimodalNormalCollator(tokenizer, language_model_args.max_seq_length)
-        if task in ['pretrain', 'continue_pretrain', 'clip_multi_task_classification', 'no_clip_classification'] else
-        MultimodalClipPairMatchCollator(tokenizer,
-                                        language_model_args.max_seq_length,
-                                        # note bad or good label is split with @
-                                        data_args.natural_language_labels.split('@')),
+        if task in
+           ['pretrain',
+            'continue_pretrain',
+            'clip_multi_task_classification',
+            'finetune_for_classification',
+            'finetune_for_classification_from_scratch',
+            'no_clip_classification']
+        else MultimodalClipPairMatchCollator(tokenizer,
+                                             language_model_args.max_seq_length,
+                                             data_args.natural_language_labels),
     )
     trainer = get_trainer(model)
     if 'prediction' not in task and not training_args.only_eval:

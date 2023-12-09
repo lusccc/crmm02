@@ -119,6 +119,12 @@ class MultimodalDataArguments:
     dataset_info: str = field(default='', metadata={"help": ""})
     data_path: str = field(default=None, metadata={
         'help': 'the path to the csv file containing the dataset'})
+    dataset_split_strategy: str = field(default='random', metadata={"help": ""})
+    train_years: str = field(default=None, metadata={"help": ""})
+    test_years: str = field(default=None, metadata={"help": ""})
+    num_train_samples: int = field(default=None, metadata={
+        "help": "if not specified, for random will be 8:2 split,"
+                " for rolling window will be the number of samples in the train window"})
     use_val: bool = field(default=True)
     numerical_transformer_method: str = field(default='yeo_johnson', metadata={
         'help': 'sklearn numerical transformer to preprocess numerical data',
@@ -136,3 +142,11 @@ class MultimodalDataArguments:
         default='Poor credit@Good credit',
         metadata={
             'help': ''})
+
+    def __post_init__(self):
+        if isinstance(self.train_years, str):
+            self.train_years = [int(m.strip()) for m in self.train_years.split(',')]
+        if isinstance(self.test_years, str):
+            self.test_years = [int(m.strip()) for m in self.test_years.split(',')]
+        if isinstance(self.natural_language_labels, str):
+            self.natural_language_labels = [m.strip() for m in self.natural_language_labels.split('@')]

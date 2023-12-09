@@ -1,0 +1,40 @@
+{
+  "text_cols": [
+    "Name",
+    "Symbol",
+    "Rating Agency Name",
+    "Sector",
+    "CIK"
+  ],
+  "cat_cols": [
+  ],
+  "num_cols": [
+    "currentRatio",
+    "quickRatio",
+    "cashRatio",
+    "daysOfSalesOutstanding",
+    "netProfitMargin",
+    "pretaxProfitMargin",
+    "grossProfitMargin",
+    "operatingProfitMargin",
+    "returnOnAssets",
+    "returnOnCapitalEmployed",
+    "returnOnEquity",
+    "assetTurnover",
+    "fixedAssetTurnover",
+    "debtEquityRatio",
+    "debtRatio",
+    "effectiveTaxRate",
+    "freeCashFlowOperatingCashFlowRatio",
+    "freeCashFlowPerShare",
+    "cashPerShare",
+    "companyEquityMultiplier",
+    "ebitPerRevenue",
+    "enterpriseValueMultiple",
+    "operatingCashFlowPerShare",
+    "operatingCashFlowSalesRatio",
+    "payablesTurnover"
+  ],
+  "label_col": "binaryRating",
+  "label_list": []
+}

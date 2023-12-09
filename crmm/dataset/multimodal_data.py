@@ -6,7 +6,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, PowerTransformer, QuantileTransformer
+from sklearn.preprocessing import StandardScaler, PowerTransformer, QuantileTransformer, OrdinalEncoder, OneHotEncoder
 from transformers.utils import logging
 
 from crmm.arguments import MultimodalDataArguments
@@ -89,12 +89,49 @@ class MultimodalData:
         ) if self.has_val else None
 
     def load_and_preprocess_data(self, feature_cols):
-        train_df = pd.read_csv(os.path.join(self.data_args.data_path, 'train(with_description_col).csv'))
-        test_df = pd.read_csv(os.path.join(self.data_args.data_path, 'test.csv'))
-        val_df = pd.read_csv(os.path.join(self.data_args.data_path, 'val(with_description_col).csv')) \
-            if self.has_val else None
+        all_df = pd.read_csv(os.path.join(self.data_args.data_path, 'all(with_description_col).csv'))
+        if self.data_args.dataset_split_strategy == 'random':
+            if self.data_args.num_train_samples is not None:
+                train_df = all_df[:self.data_args.num_train_samples]
+                if self.has_val:
+                    # 剩余数据的10%作为验证集，然后其余的作为测试集
+                    remaining_df = all_df[self.data_args.num_train_samples:]
+                    val_df = remaining_df[:int(0.1 * len(remaining_df))]
+                    test_df = remaining_df[int(0.1 * len(remaining_df)):]
+                else:
+                    # 剩余数据作为测试集
+                    test_df = all_df[self.data_args.num_train_samples:]
+                    val_df = None
+            else:
+                train_df = all_df[:int(0.8 * len(all_df))]
+                test_df = all_df[int(0.8 * len(all_df)):]
+                if self.has_val:
+                    val_df = train_df[:int(0.1 * len(train_df))]
+                    train_df = train_df[int(0.1 * len(train_df)):]
+                else:
+                    val_df = None
+        elif self.data_args.dataset_split_strategy == 'rolling_window':
+            date_col = 'Rating Date' if 'Rating Date' in all_df.columns else 'Date'
+            all_df[date_col] = pd.to_datetime(all_df[date_col])
+            all_df['Rating Year'] = all_df[date_col].dt.year.astype(int)
+            train_df = all_df[all_df['Rating Year'].isin(self.data_args.train_years)]
+            test_df = all_df[all_df['Rating Year'].isin(self.data_args.test_years)]
+            if self.data_args.num_train_samples is not None:
+                if self.has_val:
+                    val_df = train_df[self.data_args.num_train_samples:]
+                train_df = train_df[:self.data_args.num_train_samples]
+            else:
+                if self.has_val:
+                    val_df = train_df[:int(0.1 * len(train_df))]
+                    train_df = train_df[int(0.1 * len(train_df)):]
+                else:
+                    val_df = None
+        else:
+            raise ValueError(f'Unknown dataset_split_strategy: {self.data_args.dataset_split_strategy}')
 
-        test_df[feature_cols['text']] = ''  # only to make code not throw error!
+        test_df[feature_cols['text']] = ''  # to avoid data leak, and make code not throw error!
+        val_df[feature_cols['text']] = ''
+
 
         # convert cat data who are float to int, then to str. thus can be tokenized as text!
         cat_float_cols = ['CIK', 'SIC Code']
@@ -111,6 +148,12 @@ class MultimodalData:
         ])
 
         cat_pipeline = Pipeline([
+            ('selector', DataFrameSelector(feature_cols['cat'])),
+            ('imputer', SimpleImputer(strategy="most_frequent")),
+            # for benchmark condition
+            ('encoder', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
+            if self.data_args.cat_encoder == 'ordinal' else OneHotEncoder(handle_unknown='ignore', sparse=False))
+        ]) if hasattr(self.data_args, 'cat_encoder') else Pipeline([
             ('selector', DataFrameSelector(feature_cols['cat'])),
             ('imputer', SimpleImputer(strategy="most_frequent")),
         ])
@@ -131,13 +174,13 @@ class MultimodalData:
         val_preprocessed = preprocess_pipeline.transform(val_df) if self.has_val else None
 
         cols = feature_cols['num'] + feature_cols['cat'] + feature_cols['text']
-        train_preprocessed = pd.DataFrame(train_preprocessed, columns=cols)
-        test_preprocessed = pd.DataFrame(test_preprocessed, columns=cols)
-        val_preprocessed = pd.DataFrame(val_preprocessed, columns=cols) if self.has_val else None
+        train_preprocessed = pd.DataFrame(train_preprocessed, columns=cols).infer_objects()
+        test_preprocessed = pd.DataFrame(test_preprocessed, columns=cols).infer_objects()
+        val_preprocessed = pd.DataFrame(val_preprocessed, columns=cols).infer_objects() if self.has_val else None
 
-        train_preprocessed[feature_cols['label']] = train_df[feature_cols['label']]
-        test_preprocessed[feature_cols['label']] = test_df[feature_cols['label']]
-        val_preprocessed[feature_cols['label']] = val_df[feature_cols['label']]
+        train_preprocessed[feature_cols['label']] = train_df[feature_cols['label']].values
+        test_preprocessed[feature_cols['label']] = test_df[feature_cols['label']].values
+        val_preprocessed[feature_cols['label']] = val_df[feature_cols['label']].values
 
         return train_preprocessed, test_preprocessed, val_preprocessed
 

@@ -33,6 +33,7 @@ class JointFeatureExtractor(nn.Module):
             for i, hidden_dim in enumerate(hidden_dims):
                 fc.append(nn.Linear(input_dim, hidden_dim))
                 fc.append(nn.ReLU(inplace=True))
+                # fc.append(nn.Tanh())
                 fc.append(nn.Dropout(p=dropout))
                 input_dim = hidden_dim
             self.fcs[modality] = nn.Sequential(*fc)
@@ -46,6 +47,9 @@ class JointFeatureExtractor(nn.Module):
         elif self.modality_fusion_method == 'self_attention':
             self.attention_dim = 64  # Or other value
             self.self_attention = SelfAttention(self.hidden_dims[-1], self.attention_dim)
+
+        self.fuse_activation = nn.ReLU(inplace=True)
+        # self.fuse_activation = nn.Tanh()
         self.flatten = nn.Flatten()
 
     def forward(self, x):
@@ -61,7 +65,6 @@ class JointFeatureExtractor(nn.Module):
                 # Apply sigmoid to weights
                 weights = torch.sigmoid(self.ws[modality])
                 x = x * weights  # weighted
-                # x = x * self.ws[modality]  # weighted
                 x_aligned.append(x.unsqueeze(1))  # Add channel dimension (B, C, L) -> (B, 1, L)
 
             # Stack modality features along the channel dimension
@@ -79,7 +82,7 @@ class JointFeatureExtractor(nn.Module):
             x_fused = self.pool(x_fused)
 
             # Apply ReLU activation
-            x_fused = F.relu(x_fused)
+            x_fused = self.fuse_activation(x_fused)
             x_fused = x_fused.squeeze(1)  # Remove channel dimension (B, 1, L) -> (B, L)
             output = self.flatten(x_fused)
         elif self.modality_fusion_method == 'concat':

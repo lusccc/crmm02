@@ -1,6 +1,7 @@
 import pandas as pd
 # data_type = 'val'
-data_type = 'train'
+# data_type = 'train'
+data_type = 'test'
 train_data = pd.read_csv(f'{data_type}.csv')
 description_data = pd.read_csv(f'{data_type}_description.csv', header=0)
 
