@@ -4,15 +4,52 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss, MSELoss
 from torchviz import make_dot
+import torch.nn.functional as F
+
+class AdaptiveDropout(nn.Module):
+    def __init__(self, initial_p=0.5, max_p=0.5, min_p=0.1):
+        super(AdaptiveDropout, self).__init__()
+        self.initial_p = initial_p
+        self.max_p = max_p
+        self.min_p = min_p
+        self.p = initial_p  # 当前dropout概率
+
+    def forward(self, x):
+        # 检查模型是否处于训练模式
+        if not self.training:
+            return x
+
+        # 根据输入x自适应调整dropout概率
+        self.p = self.calculate_dropout_rate(x)
+
+        # 应用dropout
+        return F.dropout(x, self.p, self.training)
+
+    def calculate_dropout_rate(self, x):
+        # 实现自适应调整逻辑
+        variance = x.var().item()
+        threshold = 1.0  # 示例阈值，你需要根据自己的数据集来调整
+        delta = 0.05  # 调整幅度，根据实验结果来选择适当的值
+
+        # 示例：如果输入的方差大于阈值，则降低dropout概率
+        if variance > threshold:
+            new_p = max(self.min_p, self.p - delta)
+        else:
+            new_p = min(self.max_p, self.p + delta)
+        return new_p
 
 
-def get_classifier(input_dim, n_class):
+def create_classifier(input_dim, n_class):
     return nn.Sequential(
         nn.Linear(input_dim, 256),
-        nn.ReLU(),
+        # nn.ReLU(),
+        # nn.Tanh(),
+        nn.GELU(),
         nn.Dropout(p=0.2),
         nn.Linear(256, 128),
-        nn.ReLU(),
+        # nn.ReLU(),
+        # nn.Tanh(),
+        nn.GELU(),
         nn.BatchNorm1d(128),
         nn.Linear(128, n_class),
     )
@@ -118,7 +155,7 @@ def zeros(tensor):
         tensor.data.fill_(0)
 
 
-def hf_loss_func(inputs, classifier, labels, num_labels, class_weights):
+def hf_loss_func(inputs, classifier, labels, num_labels, class_weights=None):
     logits = classifier(inputs)
     if type(logits) is tuple:
         logits, layer_outputs = logits[0], logits[1]
@@ -139,6 +176,33 @@ def hf_loss_func(inputs, classifier, labels, num_labels, class_weights):
         return None, logits, layer_outputs
 
     return loss, logits, layer_outputs
+
+
+def _initialize_kaiming(x, initialization, d_sqrt_inv):
+    if initialization == "kaiming_uniform":
+        nn.init.uniform_(x, a=-d_sqrt_inv, b=d_sqrt_inv)
+    elif initialization == "kaiming_normal":
+        nn.init.normal_(x, std=d_sqrt_inv)
+    elif initialization is None:
+        pass
+    else:
+        raise NotImplementedError("initialization should be either of `kaiming_normal`, `kaiming_uniform`, `None`")
+
+
+class AppendCLSToken(nn.Module):
+    """Appends the [CLS] token for BERT-like inference."""
+
+    def __init__(self, d_token: int, initialization: str) -> None:
+        """Initialize self."""
+        super().__init__()
+        self.weight = nn.Parameter(torch.Tensor(d_token))
+        d_sqrt_inv = 1 / math.sqrt(d_token)
+        _initialize_kaiming(self.weight, initialization, d_sqrt_inv)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Perform the forward pass."""
+        assert x.ndim == 3
+        return torch.cat([x, self.weight.view(1, 1, -1).repeat(len(x), 1, 1)], dim=1)
 
 
 if __name__ == '__main__':

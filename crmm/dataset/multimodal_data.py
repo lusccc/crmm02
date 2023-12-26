@@ -1,6 +1,5 @@
 import os.path
 
-import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
@@ -10,41 +9,10 @@ from sklearn.preprocessing import StandardScaler, PowerTransformer, QuantileTran
 from transformers.utils import logging
 
 from crmm.arguments import MultimodalDataArguments
+from .data_info import FEATURE_COLS
 from .multimodal_dataset import MultimodalDataset
 
 logger = logging.get_logger('transformers')
-
-FEATURE_COLS = {
-    'cr': {
-        'num': ['currentRatio', 'quickRatio', 'cashRatio',
-                'daysOfSalesOutstanding', 'netProfitMargin', 'pretaxProfitMargin',
-                'grossProfitMargin', 'operatingProfitMargin', 'returnOnAssets',
-                'returnOnCapitalEmployed', 'returnOnEquity', 'assetTurnover',
-                'fixedAssetTurnover', 'debtEquityRatio', 'debtRatio',
-                'effectiveTaxRate', 'freeCashFlowOperatingCashFlowRatio',
-                'freeCashFlowPerShare', 'cashPerShare', 'companyEquityMultiplier',
-                'ebitPerRevenue', 'enterpriseValueMultiple',
-                'operatingCashFlowPerShare', 'operatingCashFlowSalesRatio',
-                'payablesTurnover'],
-        'cat': ['Name', 'Symbol', 'Rating Agency Name', 'Sector', 'CIK'],
-        'text': ['GPT_description'],
-        'label': 'binaryRating',
-        'label_values': [0, 1]
-    },
-    'cr2': {
-        'num': ['Current Ratio',
-                'Long-term Debt / Capital', 'Debt/Equity Ratio', 'Gross Margin',
-                'Operating Margin', 'EBIT Margin', 'EBITDA Margin',
-                'Pre-Tax Profit Margin', 'Net Profit Margin', 'Asset Turnover',
-                'ROE - Return On Equity', 'Return On Tangible Equity',
-                'ROA - Return On Assets', 'ROI - Return On Investment',
-                'Operating Cash Flow Per Share', 'Free Cash Flow Per Share'],
-        'cat': ['Rating Agency', 'Corporation', 'CIK', 'SIC Code', 'Sector', 'Ticker'],
-        'text': ['GPT_description'],
-        'label': 'Binary Rating',
-        'label_values': [0, 1]
-    }
-}
 
 
 class DataFrameSelector(BaseEstimator, TransformerMixin):
@@ -59,36 +27,37 @@ class DataFrameSelector(BaseEstimator, TransformerMixin):
 
 
 class MultimodalData:
-    def __init__(self, data_args: MultimodalDataArguments):
+    # `preprocess=False` is adapted and used for pytorch_tabular_model_comparison.PytorchTabularBenchmark
+    def __init__(self, data_args: MultimodalDataArguments, preprocess=True):
         self.data_args = data_args
         self.dataset_name = self.data_args.dataset_name
         self.has_val = data_args.use_val
         self.label_values = FEATURE_COLS[self.dataset_name]['label_values']
 
-        (self.train_preprocessed,
-         self.test_preprocessed,
-         self.val_preprocessed) = self.load_and_preprocess_data(FEATURE_COLS[self.dataset_name])
+        (self.train_data,
+         self.test_data,
+         self.val_data) = self.load_and_preprocess_data(FEATURE_COLS[self.dataset_name], preprocess)
 
         self.train_dataset = MultimodalDataset(
-            self.train_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['text']],
-            self.train_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['cat']],
-            self.train_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['num']],
-            self.train_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['label']]
+            self.train_data.loc[:, FEATURE_COLS[self.dataset_name]['text']],
+            self.train_data.loc[:, FEATURE_COLS[self.dataset_name]['cat']],
+            self.train_data.loc[:, FEATURE_COLS[self.dataset_name]['num']],
+            self.train_data.loc[:, FEATURE_COLS[self.dataset_name]['label']]
         )
         self.test_dataset = MultimodalDataset(
-            self.test_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['text']],
-            self.test_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['cat']],
-            self.test_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['num']],
-            self.test_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['label']]
+            self.test_data.loc[:, FEATURE_COLS[self.dataset_name]['text']],
+            self.test_data.loc[:, FEATURE_COLS[self.dataset_name]['cat']],
+            self.test_data.loc[:, FEATURE_COLS[self.dataset_name]['num']],
+            self.test_data.loc[:, FEATURE_COLS[self.dataset_name]['label']]
         )
         self.val_dataset = MultimodalDataset(
-            self.val_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['text']],
-            self.val_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['cat']],
-            self.val_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['num']],
-            self.val_preprocessed.loc[:, FEATURE_COLS[self.dataset_name]['label']]
+            self.val_data.loc[:, FEATURE_COLS[self.dataset_name]['text']],
+            self.val_data.loc[:, FEATURE_COLS[self.dataset_name]['cat']],
+            self.val_data.loc[:, FEATURE_COLS[self.dataset_name]['num']],
+            self.val_data.loc[:, FEATURE_COLS[self.dataset_name]['label']]
         ) if self.has_val else None
 
-    def load_and_preprocess_data(self, feature_cols):
+    def load_and_preprocess_data(self, feature_cols, preprocess=True):
         all_df = pd.read_csv(os.path.join(self.data_args.data_path, 'all(with_description_col).csv'))
         if self.data_args.dataset_split_strategy == 'random':
             if self.data_args.num_train_samples is not None:
@@ -132,7 +101,6 @@ class MultimodalData:
         test_df[feature_cols['text']] = ''  # to avoid data leak, and make code not throw error!
         val_df[feature_cols['text']] = ''
 
-
         # convert cat data who are float to int, then to str. thus can be tokenized as text!
         cat_float_cols = ['CIK', 'SIC Code']
         for df in [train_df, test_df, val_df]:
@@ -140,6 +108,9 @@ class MultimodalData:
                 for col in cat_float_cols:
                     if col in df.columns:
                         df[col] = df[col].fillna(-1).astype(int).astype(str)
+
+        if not preprocess:  # adapt for pytorch_tabular_model_comparison.PytorchTabularBenchmark
+            return train_df, test_df, val_df
 
         num_pipeline = Pipeline([
             ('selector', DataFrameSelector(feature_cols['num'])),

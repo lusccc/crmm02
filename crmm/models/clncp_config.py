@@ -10,7 +10,6 @@ class CLNCPConfig(PretrainedConfig):
                  fuse_modality=None,
                  modality_fusion_method=None,
                  max_text_length=None,
-                 loss_weights=None,
                  language_model_cache_dir=None,
                  language_model_name=None,
                  language_model_local_files_only=None,
@@ -18,6 +17,7 @@ class CLNCPConfig(PretrainedConfig):
                  freeze_language_model_params=False,
                  mode=None,
                  contrastive_targets=None,
+                 cat_vocab_size=None,
                  **kwargs):
         super().__init__(**kwargs)
         # unique label count
@@ -27,7 +27,6 @@ class CLNCPConfig(PretrainedConfig):
         self.use_modality = use_modality
         self.fuse_modality = fuse_modality
         self.modality_fusion_method = modality_fusion_method
-        self.loss_weights = loss_weights
         self.max_text_length = max_text_length
         self.language_model_cache_dir = language_model_cache_dir
         self.language_model_name = language_model_name
@@ -35,4 +34,5 @@ class CLNCPConfig(PretrainedConfig):
         self.load_hf_pretrained = load_hf_pretrained
         self.freeze_language_model_params = freeze_language_model_params
         self.mode = mode
-        self.contrastive_targets=contrastive_targets
+        self.contrastive_targets = contrastive_targets
+        self.cat_vocab_size = cat_vocab_size

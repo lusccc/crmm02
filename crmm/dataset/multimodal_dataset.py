@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from transformers.data.data_collator import torch_default_data_collator
 
 
 class MultimodalDataset(Dataset):
@@ -40,64 +39,67 @@ class MultimodalDataset(Dataset):
         return self.label_list
 
 
-class MultimodalNormalCollator:
+class MultimodalCollator:
 
-    def __init__(self, tokenizer, max_token_length) -> None:
-        self.tokenizer = tokenizer
+    def __init__(self, text_tokenizer, cat_tokenizer, max_token_length, natural_language_labels) -> None:
+        # text_tokenizer.pad_token = tokenizer.eos_token   #  for GPT2! add this line
+        self.text_tokenizer = text_tokenizer
         self.max_token_length = max_token_length
-
-    def __call__(self, features):
-        texts = [f['text'].values[0] for f in features]
-        text_encodings = self.tokenizer(texts, padding=True, truncation=True,
-                                        max_length=self.max_token_length, return_tensors="pt")
-
-        # cats = ['[SEP]'.join(f['cat'].values) for f in features]
-        template = "The company %s with symbol %s and CIK %s is rated by %s in the sector of %s."
-        cats = []
-        for f in features:
-            cat_sentence = template%(f['cat']['Name'], f['cat']['Symbol'],f['cat']['CIK'], f['cat']['Rating Agency Name'], f['cat']['Sector'])
-            cats.append(cat_sentence)
-
-        cat_encodings = self.tokenizer(cats, padding=True, truncation=True,
-                                       max_length=self.max_token_length, return_tensors="pt")
-
-        nums = [f['num'] for f in features]
-
-        labels = [f['labels'] for f in features]
-
-        data = {
-            'text': text_encodings.data,  # dict of input_ids and attention_mask
-            'cat': cat_encodings.data,  # dict of input_ids and attention_mask
-            'num': torch.stack(nums),
-            'labels': torch.stack(labels)
-        }
-
-        return data
-
-
-class MultimodalClipPairMatchCollator:
-
-    def __init__(self, tokenizer, max_token_length=None, natural_language_labels=None) -> None:
-        self.tokenizer = tokenizer
-        self.max_token_length = max_token_length
+        self.cat_tokenizer = cat_tokenizer  # also used in joint feature extractor
         self.natural_language_labels = natural_language_labels
 
     def __call__(self, features):
-        text_encodings = self.tokenizer(self.natural_language_labels, padding=True, truncation=True,
-                                        max_length=self.max_token_length, return_tensors="pt")
+        text_encodings = None
+        nll_encodings = None
+        if self.text_tokenizer is not None:
+            texts = [f['text'].values[0] for f in features]
+            text_encodings = self.text_tokenizer(texts, padding=True, truncation=True,
+                                                 max_length=self.max_token_length, return_tensors="pt")
+            nll_encodings = self.text_tokenizer(self.natural_language_labels, padding=True, truncation=True,
+                                                max_length=self.max_token_length, return_tensors="pt")
 
-        cats = ['[SEP]'.join(f['cat'].values) for f in features]
-        cat_encodings = self.tokenizer(cats, padding=True, truncation=True,
-                                       max_length=self.max_token_length, return_tensors="pt")
+        cat_encodings = None
+        if self.cat_tokenizer is not None:
+            # @@@ try 1: direct concat
+            cats = ['[SEP]'.join(f['cat'].values) for f in features]
+
+            # @@@ try 2: make sentence
+            # for cr:
+            # template = "The company %s with symbol %s and CIK %s is rated by %s in the sector of %s."
+            # for cr2:
+            # template = ("%s, assigned CIK %s and operating in the %s sector with SIC Code %s, "
+            #             "is rated by %s and trades with the ticker symbol %s.")
+            # cats = []
+            # for f in features:
+            #     cat_f = f['cat']
+            #     # for cr:
+            #     # cat_sentence = template % (cat_f['Name'],
+            #     #                            cat_f['Symbol'],
+            #     #                            cat_f['CIK'],
+            #     #                            cat_f['Rating Agency Name'],
+            #     #                            cat_f['Sector'])
+            #     # for cr2:
+            #     cat_sentence = template % (cat_f['Corporation'],
+            #                                cat_f['CIK'],
+            #                                cat_f['Sector'],
+            #                                cat_f['SIC Code'],
+            #                                cat_f['Rating Agency'],
+            #                                cat_f['Ticker'])
+            #     cats.append(cat_sentence)
+
+            cat_encodings = self.cat_tokenizer(cats, padding=True, truncation=True,
+                                               max_length=self.max_token_length, return_tensors="pt")
 
         nums = [f['num'] for f in features]
 
         labels = [f['labels'] for f in features]
 
         data = {
-            'text': text_encodings.data,  # dict of input_ids and attention_mask
-            'cat': cat_encodings.data,  # dict of input_ids and attention_mask
+            'text': text_encodings.data if text_encodings is not None else None,
+            'nll': nll_encodings.data if nll_encodings is not None else None,
+            'cat': cat_encodings.data if cat_encodings is not None else None,
             'num': torch.stack(nums),
             'labels': torch.stack(labels)
         }
         return data
+

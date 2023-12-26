@@ -1,6 +1,7 @@
+import argparse
 import asyncio
 import time
-import argparse
+
 import pandas as pd
 from fastapi_poe.client import get_bot_response
 from fastapi_poe.types import ProtocolMessage

@@ -3,7 +3,7 @@ from transformers import PreTrainedModel
 
 from crmm.models.clncp_config import CLNCPConfig
 from crmm.models.feature_extractor_factory import FeatureExtractorFactory
-from crmm.models.layer_utils import hf_loss_func, get_classifier
+from crmm.models.layer_utils import hf_loss_func, create_classifier
 
 
 class CMMConfig(CLNCPConfig):
@@ -34,8 +34,8 @@ class ConventionalMultimodalClassification(CMMPreTrainedModel):
         self.feature_extractors = self.feature_extractors_factory.get_feature_extractors()
         self.feature_extractors = nn.ModuleDict(self.feature_extractors)
 
-        self.classifier = get_classifier(input_dim=self.feature_extractors['joint'].get_output_dim(),
-                                         n_class=self.n_labels)
+        self.classifier = create_classifier(input_dim=self.feature_extractors['joint'].get_output_dim(),
+                                            n_class=self.n_labels)
 
     def forward(self, return_loss=True, **inputs, ):
         num_features = self.feature_extractors['num'](inputs['num'])

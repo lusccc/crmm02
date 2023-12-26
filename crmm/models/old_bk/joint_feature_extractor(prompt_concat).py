@@ -1,12 +1,9 @@
-import math
 from typing import Tuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from crmm.models.language_model import LanguageModel
-from crmm.models.layer_utils import MLP
+from crmm.models.text_language_model import TextLanguageModel
 
 
 class LightMapping(nn.Module):
@@ -28,7 +25,7 @@ class LightMapping(nn.Module):
 
 
 class JointFeatureExtractor(nn.Module):
-    def __init__(self, modality_feat_dims, language_model: LanguageModel):
+    def __init__(self, modality_feat_dims, language_model: TextLanguageModel):
         super().__init__()
         self.language_model = language_model
         self.prefix_length = 1  # see paper: ClipCap: CLIP Prefix for Image Captioning

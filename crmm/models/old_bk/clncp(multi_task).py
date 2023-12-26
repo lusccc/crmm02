@@ -3,14 +3,13 @@ from typing import Optional, Tuple, Any, List
 
 import torch
 import torch.nn as nn
-from transformers import PreTrainedModel, PretrainedConfig
-from transformers.modeling_outputs import BaseModelOutputWithPooling
+from transformers import PreTrainedModel
 from transformers.models.clip.modeling_clip import clip_loss, contrastive_loss
 from transformers.utils import logging, ModelOutput
 
 from crmm.models.clncp_config import CLNCPConfig
 from crmm.models.feature_extractor_factory import FeatureExtractorFactory
-from crmm.models.layer_utils import get_classifier, hf_loss_func
+from crmm.models.layer_utils import create_classifier, hf_loss_func
 
 logger = logging.get_logger('transformers')
 
@@ -69,8 +68,8 @@ class CLNCP(CLNCPPreTrainedModel):
         self.logit_scale = nn.Parameter(torch.tensor(2.6592))  # value copied from configuration_clip.py
 
         if self.pretrained:
-            self.classifier = get_classifier(input_dim=final_feature_dim,
-                                             n_class=self.n_labels) if self.pretrained else None
+            self.classifier = create_classifier(input_dim=final_feature_dim,
+                                                n_class=self.n_labels) if self.pretrained else None
 
         # Initialize weights and apply final processing
         self.post_init()

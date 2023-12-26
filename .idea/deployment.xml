@@ -10,6 +10,13 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="s1zerotier">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/pyprojects/crmm02_clip" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
     </serverData>
   </component>
 </project>

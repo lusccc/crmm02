@@ -1,8 +1,8 @@
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Union, List
+from typing import Optional, Union
 
-from transformers import TrainingArguments, IntervalStrategy
+from transformers import TrainingArguments, IntervalStrategy, SchedulerType
 
 os.environ["WANDB_DISABLED"] = "true"
 TASK = ['pretrain', 'fine_tune', 'fine_tune_from_scratch']
@@ -12,20 +12,20 @@ MODALITY = ['num', 'cat', 'text']
 @dataclass
 class CrmmTrainingArguments(TrainingArguments):
     # @@@@ 1. our args
-    # report_to: str = field(default='wandb')
+    # report_to: str = field(default='wandb')·
     root_dir: str = field(default='./exps', metadata={"help": "parent dir of output_dir"})
     pretrained_model_dir: str = field(default=None, metadata={"help": ""})
     finetuned_model_dir: str = field(default=None, metadata={"help": "can be load for only evaluation"})
     auto_create_model_dir: bool = field(default=True, metadata={"help": "auto create model dir in root_dir"})
     save_excel_path: str = field(default='./excel/res.xlsx', metadata={"help": ""})
+    save_hist_eval_csv_path: str = field(default=None, metadata={"help": ""})
     task: str = field(default=None, metadata={"help": "", })
     use_modality: str = field(default=None, metadata={"help": ""})
     fuse_modality: str = field(default=None, metadata={"help": ""})
     modality_fusion_method: str = field(default=None, metadata={"help": ""})
     contrastive_targets: str = field(default=None, metadata={"help": ""})
-    loss_weights: str = field(default="1,1,1", metadata={"help": ""})
+    contrastive_early_stopping_epoch: int = field(default=None, metadata={"help": ""})
     patience: int = field(default=1000, metadata={"help": ""})
-    only_eval: bool = field(default=False, metadata={"help": ""})
 
     # @@@@ 2. huggingface args
     # output_dir and logging_dir will be auto set in runner_setup.setup
@@ -62,6 +62,11 @@ class CrmmTrainingArguments(TrainingArguments):
     auto_find_batch_size: bool = field(default=True, metadata={
         "help": ("Whether to automatically decrease the batch size in half and rerun the training loop again each time"
                  " a CUDA Out-of-Memory was reached")})
+    weight_decay: float = field(default=0.0, metadata={"help": "Weight decay for AdamW if we apply some."})
+    lr_scheduler_type: Union[SchedulerType, str] = field(
+        default="linear",
+        metadata={"help": "The scheduler type to use."},
+    )
     fp16: bool = field(
         default=not no_cuda,
         metadata={"help": "Whether to use fp16 (mixed) precision instead of 32-bit"},
@@ -70,14 +75,12 @@ class CrmmTrainingArguments(TrainingArguments):
     # PyTorch 2.0 specifics
     # bf16: bool = field(default=True, metadata={})
     # torch_compile: bool = field(default=False, metadata={})
-    # optim: str = field(default='adamw_torch_fused', metadata={})
+    optim: str = field(default='adamw_torch_fused' if not no_cuda else 'adamw_hf', metadata={})
 
     def __post_init__(self):
         super().__post_init__()
         if isinstance(self.use_modality, str):
             self.use_modality = [m.strip() for m in self.use_modality.split(',')]
-        if isinstance(self.loss_weights, str):
-            self.loss_weights = [int(w.strip()) for w in self.loss_weights.split(',')]
         if isinstance(self.fuse_modality, str):
             self.fuse_modality = [m.strip() for m in self.fuse_modality.split(',')]
         if isinstance(self.contrastive_targets, str):
@@ -88,8 +91,18 @@ class CrmmTrainingArguments(TrainingArguments):
             self.greater_is_better = False
             self.evaluation_strategy = 'no'
         else:
+            # # self.metric_for_best_model = 'loss'
+            # # self.greater_is_better = False
+            # # self.metric_for_best_model = 'acc'
+
             self.metric_for_best_model = 'acc'
             self.greater_is_better = True
+
+            # @@@ try:
+            if self.save_hist_eval_csv_path is not None:
+                self.metric_for_best_model = 'loss'
+                self.greater_is_better = False
+                self.evaluation_strategy = 'no'
 
         if self.output_dir is not None and self.logging_dir is not None:
             self.auto_create_model_dir = False
@@ -111,6 +124,7 @@ class LanguageModelArguments:
     cache_dir: Optional[str] = field(default='./exps/model_config_cache', metadata={
         "help": "Where do you want to store the pretrained models downloaded from s3"})
     load_hf_model_from_cache: bool = field(default=True, )
+    load_hf_pretrained: bool = field(default=True, )
 
 
 @dataclass

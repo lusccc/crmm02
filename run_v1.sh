@@ -35,6 +35,11 @@ python main_runner.py --task no_clip_classification --per_device_train_batch_siz
 
 
 # @@@@@@ benchmark
-python benchmark_model_comparison.py --dataset_name cr --data_path "./data/cr" --excel_path "res_benchmark_cr_2013.xlsx" --dataset_split_strategy "rolling_window" --train_years 2010,2011,2012 --test_years 2013 --cat_encoder "onehot"
+python ml_benchmark_model_comparison.py --dataset_name cr --data_path "./data/cr" --excel_path "res_benchmark_cr_2013.xlsx" --dataset_split_strategy "rolling_window" --train_years 2010,2011,2012 --test_years 2013 --cat_encoder "onehot"
 
-python benchmark_model_comparison.py --dataset_name cr2 --data_path "./data/cr2" --excel_path "res_benchmark_random.xlsx" --dataset_split_strategy "random"
+python ml_benchmark_model_comparison.py --dataset_name cr --data_path "./data/cr" --excel_path "res_benchmark_random.xlsx" --dataset_split_strategy "random"
+
+python pytorch_tabular_model_comparison.py --dataset_name cr --data_path "./data/cr" --dataset_split_strategy "random" --excel_path "./excel/res_benchmark_cr_ptt_aaa.xlsx"
+
+python pytorch_tabular_model_comparison.py --dataset_name cr2 --data_path "./data/cr2" --dataset_name "cr2" --dataset_split_strategy "rolling_window" --train_years "2011,2012,2013" --test_years "2014" --excel_path "./excel/res_benchmark_cr2_ptt_2014.xlsx"
+

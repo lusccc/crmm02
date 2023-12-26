@@ -28,7 +28,7 @@ class CommandRunner:
                  dataset_split_strategy, modality_fusion_method, freeze_language_model_params, use_modality,
                  fuse_modality, language_model_name, load_hf_model_from_cache, contrastive_targets=None,
                  pretrained_model_dir=None, save_excel_path=None, natural_language_labels=None,
-                 num_train_samples=None, train_years=None, test_years=None):
+                 num_train_samples=None, train_years=None, test_years=None, contrastive_early_stopping_epoch=None):
         self.root_dir = root_dir
         self.task = task
         self.per_device_train_batch_size = per_device_train_batch_size
@@ -49,6 +49,7 @@ class CommandRunner:
         self.num_train_samples = num_train_samples
         self.train_years = train_years
         self.test_years = test_years
+        self.contrastive_early_stopping_epoch = contrastive_early_stopping_epoch
 
         exp_dirs = create_exp_dirs(self.root_dir, self.task)
         self.output_dir, self.logging_dir = exp_dirs
@@ -83,6 +84,8 @@ class CommandRunner:
             command += f" --train_years {self.train_years}"
         if self.test_years is not None:
             command += f" --test_years {self.test_years}"
+        if self.contrastive_early_stopping_epoch is not None:
+            command += f" --contrastive_early_stopping_epoch {self.contrastive_early_stopping_epoch}"
         return command
 
     def run(self):
@@ -161,7 +164,7 @@ class CommandRunner:
 #         command_runer.run()
 
 
-def run_rolling_window(repeat=1, only_scratch=False, suffix=''):
+def run_pre_fine_rolling_window(repeat=1, only_scratch=False, suffix=''):
     dataset = 'cr'
     pre_batch_size = 150
     finetune_batch_size = 14
@@ -262,10 +265,10 @@ def run_rolling_window(repeat=1, only_scratch=False, suffix=''):
             finetune_command_runer.run()
 
 
-def run_random_split(repeat=1, only_scratch=False, suffix=''):
-    dataset = 'cr'
+def run_pre_fine_random_split(repeat=1, only_scratch=False, suffix=''):
+    dataset = 'cr2'
     pre_batch_size = 300
-    finetune_batch_size = 300
+    finetune_batch_size = 1280
     pretrain_epoch = 20
     finetune_epoch = 100
     num_train_samples = None
@@ -287,7 +290,7 @@ def run_random_split(repeat=1, only_scratch=False, suffix=''):
             dataset_name=dataset,
             dataset_split_strategy='random',
             modality_fusion_method='conv',
-            freeze_language_model_params='False',  # !
+            freeze_language_model_params='True',  # ! TODO note: True for_unfreeze_emb_pooler_addnorm
             use_modality='num,cat,text',
             fuse_modality='num,cat',
             language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
@@ -341,9 +344,9 @@ def run_random_split(repeat=1, only_scratch=False, suffix=''):
         finetune_command_runer.run()
 
 
-def run_multitask_rolling(repeat=1, suffix=''):
-    dataset = 'cr'
-    finetune_batch_size = 500
+def run_multitask_rolling_window(repeat=1, suffix=''):
+    dataset = 'cr2'
+    finetune_batch_size = 160
     finetune_epoch = 100
     num_train_samples = None
     train_years_list = [
@@ -374,7 +377,7 @@ def run_multitask_rolling(repeat=1, suffix=''):
                 dataset_name=dataset,
                 dataset_split_strategy='rolling_window',
                 modality_fusion_method='conv',
-                freeze_language_model_params='False',  # !
+                freeze_language_model_params='True',  # ! TODO note: True for_unfreeze_emb_pooler_addnorm
                 use_modality='num,cat,text',
                 fuse_modality='num,cat',
                 language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
@@ -390,7 +393,7 @@ def run_multitask_rolling(repeat=1, suffix=''):
 
 def run_multitask_random_split(repeat=1, suffix=''):
     dataset = 'cr2'
-    finetune_batch_size = 300
+    finetune_batch_size = 80
     finetune_epoch = 100
     num_train_samples = None
     for i in range(repeat):
@@ -406,16 +409,63 @@ def run_multitask_random_split(repeat=1, suffix=''):
             dataset_name=dataset,
             dataset_split_strategy='random',
             modality_fusion_method='conv',
-            freeze_language_model_params='False',  # !
+            freeze_language_model_params='True',  # ! TODO note: True for_unfreeze_emb_pooler_addnorm
             use_modality='num,cat,text',
             fuse_modality='num,cat',
-            language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+            # language_model_name='mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis',
+            # language_model_name='ProsusAI/finbert',
+            language_model_name='gpt2',
             load_hf_model_from_cache='True',
             num_train_samples=num_train_samples,
             save_excel_path=save_excel_path,
         )
         command_runer.run()
         # print(command_runer.to_command())
+
+
+def run_ptt_benchmark_rolling_window(repeat=10, dataset=None):
+    train_years_list = [
+        [2010, 2011, 2012],
+        [2011, 2012, 2013],
+        [2012, 2013, 2014],
+        [2013, 2014, 2015],
+    ]
+    test_year_List = [
+        [2013],
+        [2014],
+        [2015],
+        [2016],
+    ]
+    for i in range(repeat):
+        for train_years, test_years in zip(train_years_list, test_year_List):
+            train_years = ','.join(map(str, train_years))
+            test_years = ','.join(map(str, test_years))
+            save_excel_path = (f'./excel/{dataset}_res_ptt_benchmark_rolling_window_'
+                               f'#{train_years}#_#{test_years}#_rep_{i}.xlsx')
+            command = (f"python pytorch_tabular_model_comparison.py"
+                       f" --dataset_name {dataset}"
+                       f" --data_path ./data/{dataset}"
+                       f" --excel_path {save_excel_path}"
+                       f" --dataset_split_strategy rolling_window"
+                       f" --train_years {train_years}"
+                       f" --test_years {test_years}")
+            print(command)
+            process = subprocess.Popen(command, shell=True)
+            process.wait()
+
+
+def run_ptt_benchmark_random_split(repeat=1, dataset=None):
+    for i in range(repeat):
+        save_excel_path = (f'./excel/{dataset}_res_ptt_benchmark_random_split_'
+                           f'rep_{i}.xlsx')
+        command = (f"python pytorch_tabular_model_comparison.py"
+                   f" --dataset_name {dataset}"
+                   f" --data_path ./data/{dataset}"
+                   f" --excel_path {save_excel_path}"
+                   f" --dataset_split_strategy random")
+        print(command)
+        process = subprocess.Popen(command, shell=True)
+        process.wait()
 
 
 def run_benchmark_rolling_window(repeat=10, dataset=None):
@@ -437,7 +487,7 @@ def run_benchmark_rolling_window(repeat=10, dataset=None):
             test_years = ','.join(map(str, test_years))
             save_excel_path = (f'./excel/{dataset}_res_benchmark_rolling_window_'
                                f'#{train_years}#_#{test_years}#_rep_{i}.xlsx')
-            command = (f"python benchmark_model_comparison.py"
+            command = (f"python ml_benchmark_model_comparison.py"
                        f" --dataset_name {dataset}"
                        f" --data_path ./data/{dataset}"
                        f" --excel_path {save_excel_path}"
@@ -449,12 +499,19 @@ def run_benchmark_rolling_window(repeat=10, dataset=None):
             process.wait()
 
 
+def run_benchmark_random_split(repeat=10, dataset=None):
+    for i in range(repeat):
+        save_excel_path = (f'./excel/{dataset}_res_benchmark_random_split_'
+                           f'rep_{i}.xlsx')
+        command = (f"python ml_benchmark_model_comparison.py"
+                   f" --dataset_name {dataset}"
+                   f" --data_path ./data/{dataset}"
+                   f" --excel_path {save_excel_path}"
+                   f" --dataset_split_strategy random")
+        print(command)
+        process = subprocess.Popen(command, shell=True)
+        process.wait()
+
+
 if __name__ == '__main__':
-    # run_pre_epoch(repeat=5)
-    # run_scratch(repeat=10)
-    # run_rolling_window(repeat=5, only_scratch=True, suffix='hpp')
-    run_multitask_rolling(5, suffix='_cat_sent')
-    # run_benchmark_rolling_window('cr2')
-    # run_benchmark_rolling_window(10, 'cr')
-    # run_random_split(2, True, '_onoi')
-    # run_multitask_random_split(5,  '_fck')
+    run_multitask_rolling_window(2, '_freezeall_roberta_catemb_numtextcontrastive_promptconcat_tinystruct_onvalacc')

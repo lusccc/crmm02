@@ -1,7 +1,7 @@
 import argparse
 import os
 from dataclasses import dataclass, field
-from math import sqrt
+
 
 import pandas as pd
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
@@ -19,26 +19,26 @@ from xgboost import XGBClassifier
 
 from crmm.arguments import MultimodalDataArguments
 from crmm.dataset.multimodal_data import MultimodalData
+from crmm.metrics import calc_classification_metrics_benchmark
 
 
 @dataclass
-class BenchmarkDataArguments(MultimodalDataArguments):
+class MLBenchmarkDataArguments(MultimodalDataArguments):
     excel_path: str = field(default=None, metadata={"help": "Path to the Excel file to save the results."})
     cat_encoder: str = field(default="ordinal", metadata={"help": "Encoding method for categorical features."})
 
 
-class Benchmark:
+class MLBenchmark:
 
-    def __init__(self, data_args: BenchmarkDataArguments):
+    def __init__(self, data_args: MLBenchmarkDataArguments):
         self.data_args = data_args
         benchmark_data = MultimodalData(data_args)
         (self.train_data,
          self.val_data,
-         self.test_data) = (benchmark_data.train_preprocessed.drop(['GPT_description'], axis=1),
-                            benchmark_data.val_preprocessed.drop(['GPT_description'], axis=1),
-                            benchmark_data.test_preprocessed.drop(['GPT_description'], axis=1))
+         self.test_data) = (benchmark_data.train_data.drop(['GPT_description'], axis=1),
+                            benchmark_data.val_data.drop(['GPT_description'], axis=1),
+                            benchmark_data.test_data.drop(['GPT_description'], axis=1))
         print()
-
 
     def train_and_eval(self):
         models = [
@@ -86,7 +86,7 @@ class Benchmark:
                 y_pred = model.predict(X_test)
                 y_pred_prob = model.predict_proba(X_test)[:, 1]  # Probability of positive class
 
-            acc, auc, ks, g_mean, type_1_acc, type_2_acc = self.evaluate_model(y_test, y_pred, y_pred_prob)
+            acc, auc, ks, g_mean, type_1_acc, type_2_acc = calc_classification_metrics_benchmark(y_test, y_pred, y_pred_prob)
             results_df = pd.concat(
                 [results_df, pd.DataFrame([[name, acc, auc, ks, g_mean, type_1_acc, type_2_acc]], columns=res_cols)]
             )
@@ -95,22 +95,11 @@ class Benchmark:
         results_df.to_excel(self.data_args.excel_path, index=False)
 
 
-    def evaluate_model(self, y_true, y_pred, y_pred_prob):
-        acc = accuracy_score(y_true, y_pred)
-        auc = roc_auc_score(y_true, y_pred_prob)
-        fpr, tpr, thresholds = roc_curve(y_true, y_pred_prob)
-        ks = max(tpr - fpr)
-        cm = confusion_matrix(y_true, y_pred)
-        type_1_acc = cm[0, 0] / cm[0, :].sum()
-        type_2_acc = cm[1, 1] / cm[1, :].sum()
-        g_mean = sqrt(type_1_acc * type_2_acc)
-
-        return acc, auc, ks, g_mean, type_1_acc, type_2_acc
 
 
 if __name__ == '__main__':
-    parser = HfArgumentParser([BenchmarkDataArguments, ])
-    args: BenchmarkDataArguments = parser.parse_args_into_dataclasses()[0]
+    parser = HfArgumentParser([MLBenchmarkDataArguments, ])
+    args: MLBenchmarkDataArguments = parser.parse_args_into_dataclasses()[0]
 
-    benchmark = Benchmark(args)
+    benchmark = MLBenchmark(args)
     benchmark.train_and_eval()

@@ -1,8 +1,4 @@
 import logging
-import types
-
-import numpy as np
-from sklearn import preprocessing
 
 logger = logging.getLogger(__name__)
 

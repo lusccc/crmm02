@@ -51,11 +51,11 @@ def setup(exp_args: CrmmTrainingArguments, data_args=None, model_args=None):
     with open(os.path.join(exp_args.output_dir, 'training_arguments.json'), 'w') as f:
         json.dump(exp_args.to_sanitized_dict(), f, indent=4, sort_keys=True)
 
-    # with open(os.path.join(exp_args.output_dir, 'model_arguments.json'), 'w') as f:
-    #     json.dump(model_args., f, indent=4, sort_keys=True)
-    #
-    # with open(os.path.join(exp_args.output_dir, 'data_arguments.json'), 'w') as f:
-    #     json.dump(data_args.to_sanitized_dict(), f, indent=4, sort_keys=True)
+    with open(os.path.join(exp_args.output_dir, 'model_arguments.json'), 'w') as f:
+        json.dump(model_args.__dict__, f, indent=4, sort_keys=True)
+
+    with open(os.path.join(exp_args.output_dir, 'data_arguments.json'), 'w') as f:
+        json.dump(data_args.__dict__, f, indent=4, sort_keys=True)
 
     logger.info("Stored configuration file in '{}'".format(exp_args.output_dir))
 
