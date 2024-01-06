@@ -129,7 +129,7 @@ class JointFeatureExtractor(nn.Module):
         self.language_model_hidden_dim = self.language_model.get_output_dim()
         self.add_cls = AppendCLSToken(d_token=self.language_model_hidden_dim, initialization='kaiming_uniform')
 
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, inputs):
         # @@@@ try 2

@@ -24,12 +24,13 @@ from crmm.metrics import calc_classification_metrics_benchmark
 # to run this file, one should activate the env for `pytorch_tabular`!
 
 @dataclass
-class PytorchTabularBenchmarkDataArguments(MultimodalDataArguments):
+class PytorchTabularBenchmarkArguments(MultimodalDataArguments):
     excel_path: str = field(default=None, metadata={"help": "Path to the Excel file to save the results."})
-
+    epochs: int = field(default=50, metadata={"help": "Number of epoch"})
+    batch_size: int = field(default=300, metadata={"help": "Number of batch_size"})
 
 class PytorchTabularBenchmark:
-    def __init__(self, data_args: PytorchTabularBenchmarkDataArguments):
+    def __init__(self, data_args: PytorchTabularBenchmarkArguments):
         self.data_args = data_args
         benchmark_data = MultimodalData(data_args, preprocess=False)
         (self.train_data,
@@ -47,11 +48,11 @@ class PytorchTabularBenchmark:
         self.seed = random.randint(0, 10000)
         self.trainer_config = TrainerConfig(
             #     auto_lr_find=True, # Runs the LRFinder to automatically derive a learning rate
-            batch_size=800,
-            max_epochs=100,
+            batch_size=self.data_args.batch_size,
+            max_epochs=self.data_args.epochs,
             early_stopping="valid_loss",  # Monitor valid_loss for early stopping
             early_stopping_mode="min",  # Set the mode as min because for val_loss, lower is better
-            early_stopping_patience=100,  # No. of epochs of degradation training will wait before terminating
+            early_stopping_patience=self.data_args.epochs,  # No. of epochs of degradation training will wait before terminating
             checkpoints="valid_loss",  # Save best checkpoint monitoring val_loss
             load_best=True,  # After training, load the best checkpoint,
             seed=self.seed  # TODO actually not work, is a bug of pytorch tabular!
@@ -66,20 +67,20 @@ class PytorchTabularBenchmark:
         ).__dict__  # Convert to dict to pass to the model config (OmegaConf doesn't accept objects)
 
         self.model_configs = [
-            # CategoryEmbeddingModelConfig(
-            #     task="classification",
-            #     layers="64-32",  # Number of nodes in each layer
-            #     activation="ReLU",  # Activation between each layers
-            #     learning_rate=1e-3,
-            #     head="LinearHead",  # Linear Head
-            #     head_config=self.head_config,  # Linear Head Config
-            # ),
-            # GatedAdditiveTreeEnsembleConfig(
-            #     task="classification",
-            #     learning_rate=1e-3,
-            #     head="LinearHead",  # Linear Head
-            #     head_config=self.head_config,  # Linear Head Config
-            # ),
+            CategoryEmbeddingModelConfig(
+                task="classification",
+                layers="64-32",  # Number of nodes in each layer
+                activation="ReLU",  # Activation between each layers
+                learning_rate=1e-3,
+                head="LinearHead",  # Linear Head
+                head_config=self.head_config,  # Linear Head Config
+            ),
+            GatedAdditiveTreeEnsembleConfig(
+                task="classification",
+                learning_rate=1e-3,
+                head="LinearHead",  # Linear Head
+                head_config=self.head_config,  # Linear Head Config
+            ),
             # GatedAdditiveTreeEnsembleConfig(
             #     task="classification",
             #     learning_rate=1e-3,
@@ -119,8 +120,7 @@ class PytorchTabularBenchmark:
 
     def train_and_eval(self):
         # Create a DataFrame to store all the results
-        res_cols = ['Model', 'Acc', 'AUC', 'KS', 'G-mean', 'Type-I Acc', 'Type-II Acc']
-        results_df = pd.DataFrame(columns=res_cols)
+        results_list = []
         for model_config in self.model_configs:
             tabular_model = TabularModel(
                 data_config=self.data_config,
@@ -133,24 +133,23 @@ class PytorchTabularBenchmark:
                               seed=self.seed)
             tabular_model.evaluate(self.test_data)
             pred = tabular_model.predict(self.test_data)
-            y_true = pred[self.data_config.target]
+            y_true = self.test_data[self.data_config.target]
             y_pred = pred['prediction']
             y_pred_prob = pred['1_probability']
-            acc, auc, ks, g_mean, type_1_acc, type_2_acc = calc_classification_metrics_benchmark(y_true, y_pred,
-                                                                                                 y_pred_prob)
-            results_df = pd.concat(
-                [results_df,
-                 pd.DataFrame([[model_config._model_name, acc, auc, ks, g_mean, type_1_acc, type_2_acc]],
-                              columns=res_cols)]
-            )
+            result = calc_classification_metrics_benchmark(model_config._model_name,
+                                                           y_true.values.squeeze(),
+                                                           y_pred.values.squeeze(),
+                                                           y_pred_prob.values.squeeze())
+            results_list.append(result)
 
         # Write the results to an Excel file
+        results_df = pd.DataFrame(results_list)
         results_df.to_excel(self.data_args.excel_path, index=False)
 
 
 if __name__ == '__main__':
-    parser = HfArgumentParser([PytorchTabularBenchmarkDataArguments, ])
-    args: PytorchTabularBenchmarkDataArguments = parser.parse_args_into_dataclasses()[0]
+    parser = HfArgumentParser([PytorchTabularBenchmarkArguments, ])
+    args: PytorchTabularBenchmarkArguments = parser.parse_args_into_dataclasses()[0]
 
     benchmark = PytorchTabularBenchmark(args)
     benchmark.train_and_eval()

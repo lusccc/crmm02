@@ -28,7 +28,8 @@ class CommandRunner:
                  dataset_split_strategy, modality_fusion_method, freeze_language_model_params, use_modality,
                  fuse_modality, language_model_name, load_hf_model_from_cache, contrastive_targets=None,
                  pretrained_model_dir=None, save_excel_path=None, natural_language_labels=None,
-                 num_train_samples=None, train_years=None, test_years=None, contrastive_early_stopping_epoch=None):
+                 num_train_samples=None, train_years=None, test_years=None, contrastive_early_stopping_epoch=None,
+                 save_hist_eval_csv_path=None):
         self.root_dir = root_dir
         self.task = task
         self.per_device_train_batch_size = per_device_train_batch_size
@@ -50,6 +51,7 @@ class CommandRunner:
         self.train_years = train_years
         self.test_years = test_years
         self.contrastive_early_stopping_epoch = contrastive_early_stopping_epoch
+        self.save_hist_eval_csv_path = save_hist_eval_csv_path
 
         exp_dirs = create_exp_dirs(self.root_dir, self.task)
         self.output_dir, self.logging_dir = exp_dirs
@@ -86,6 +88,8 @@ class CommandRunner:
             command += f" --test_years {self.test_years}"
         if self.contrastive_early_stopping_epoch is not None:
             command += f" --contrastive_early_stopping_epoch {self.contrastive_early_stopping_epoch}"
+        if self.save_hist_eval_csv_path is not None:
+            command += f" --save_hist_eval_csv_path {self.save_hist_eval_csv_path}"
         return command
 
     def run(self):
@@ -346,8 +350,8 @@ def run_pre_fine_random_split(repeat=1, only_scratch=False, suffix=''):
 
 def run_multitask_rolling_window(repeat=1, suffix=''):
     dataset = 'cr2'
-    finetune_batch_size = 160
-    finetune_epoch = 100
+    finetune_batch_size = 224
+    finetune_epoch = 135
     num_train_samples = None
     train_years_list = [
         [2010, 2011, 2012],
@@ -368,9 +372,12 @@ def run_multitask_rolling_window(repeat=1, suffix=''):
             save_excel_path = (f'./excel/{dataset}_res_rolling_window_'
                                f'#{train_years}#_#{test_years}#_'
                                f'multitask_epoch_{finetune_epoch}_rep_{repeat}{suffix}.xlsx')
+            save_hist_eval_csv_path = (f'./hist_csv/{dataset}_res_rolling_window_'
+                                       f'#{train_years}#_#{test_years}#_'
+                                       f'multitask_epoch_{finetune_epoch}_rep_{repeat}{suffix}.xlsx')
             command_runer = CommandRunner(
                 root_dir='./exps',
-                task='clip_multi_task_classification',  # !
+                task='multi_task_classification',  # !
                 per_device_train_batch_size=str(finetune_batch_size),
                 num_train_epochs=finetune_epoch,  # !
                 data_path=f'./data/{dataset}',
@@ -386,6 +393,7 @@ def run_multitask_rolling_window(repeat=1, suffix=''):
                 test_years=test_years,
                 num_train_samples=num_train_samples,
                 save_excel_path=save_excel_path,
+                save_hist_eval_csv_path=save_hist_eval_csv_path,
             )
             command_runer.run()
             # print(command_runer.to_command())

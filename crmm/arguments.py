@@ -25,6 +25,7 @@ class CrmmTrainingArguments(TrainingArguments):
     modality_fusion_method: str = field(default=None, metadata={"help": ""})
     contrastive_targets: str = field(default=None, metadata={"help": ""})
     contrastive_early_stopping_epoch: int = field(default=None, metadata={"help": ""})
+    clncp_ensemble_method: str = field(default=None, metadata={"help": ""})
     patience: int = field(default=1000, metadata={"help": ""})
 
     # @@@@ 2. huggingface args
@@ -84,7 +85,10 @@ class CrmmTrainingArguments(TrainingArguments):
         if isinstance(self.fuse_modality, str):
             self.fuse_modality = [m.strip() for m in self.fuse_modality.split(',')]
         if isinstance(self.contrastive_targets, str):
-            self.contrastive_targets = [m.strip() for m in self.contrastive_targets.split(',')]
+            if self.contrastive_targets == 'None':
+                self.contrastive_targets = None
+            else:
+                self.contrastive_targets = [m.strip() for m in self.contrastive_targets.split(',')]
 
         if self.task == 'pretrain' or self.task == 'continue_pretrain':
             self.metric_for_best_model = 'loss'
@@ -125,6 +129,12 @@ class LanguageModelArguments:
         "help": "Where do you want to store the pretrained models downloaded from s3"})
     load_hf_model_from_cache: bool = field(default=True, )
     load_hf_pretrained: bool = field(default=True, )
+    num_cat_language_model_hyperparameters: str = field(default='512,8,8,2048', metadata={})
+
+    def __post_init__(self):
+        if isinstance(self.num_cat_language_model_hyperparameters, str):
+            self.num_cat_language_model_hyperparameters = [int(m.strip()) for m in
+                                                           self.num_cat_language_model_hyperparameters.split(',')]
 
 
 @dataclass

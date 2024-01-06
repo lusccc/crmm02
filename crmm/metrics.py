@@ -1,15 +1,15 @@
 import os
-from math import sqrt
 
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.special import softmax
+from scipy.stats import ks_2samp
 from sklearn.metrics import (
     auc,
     precision_recall_curve,
     roc_auc_score,
     confusion_matrix, ConfusionMatrixDisplay, matthews_corrcoef, roc_curve, precision_recall_fscore_support,
-    accuracy_score,
+    accuracy_score, recall_score, precision_score, f1_score,
 )
 from transformers import EvalPrediction
 from transformers.utils import logging
@@ -46,28 +46,23 @@ def calc_classification_metrics_hf(p: EvalPrediction, save_cm_fig_dir=None):
         type2_acc = tp / (tp + fn) if (tp + fn) > 0 else 0
         gmean = np.sqrt(type1_acc * type2_acc)  # this is right!
 
-        result = {"acc": acc,
-                  'roc_auc': roc_auc_pred_score,
-                  'threshold': threshold,
-                  'pr_auc': pr_auc,
-                  'recall': recalls[ix].item(),
-                  'precision': precisions[ix].item(),
-                  'f1': fscore[ix].item(),
-                  'tn': tn.item(), 'fp': fp.item(), 'fn': fn.item(), 'tp': tp.item(),
-                  'ks': ks,
-                  'gmean': gmean,
-                  'type1_acc': type1_acc,  # 加入type1_acc
-                  'type2_acc': type2_acc,  # 加入type2_acc
-                  'cm': str(cm.tolist())}
-        cpi = np.power(result['roc_auc'] *
-                       result['pr_auc'] *
-                       result['f1'] *
-                       result['gmean'] *
-                       result['acc'] *
-                       result['ks'] *
-                       result['type1_acc'] *
-                       result['type2_acc'], 1 / 8)
-        result = {**result, 'cpi': cpi}
+        result = {
+            'threshold': threshold,
+            'pr_auc': pr_auc,
+            'recall': recalls[ix].item(),
+            'precision': precisions[ix].item(),
+            'f1': fscore[ix].item(),
+            'tn': tn.item(), 'fp': fp.item(), 'fn': fn.item(), 'tp': tp.item(),
+            "acc": acc,
+            'roc_auc': roc_auc_pred_score,
+            'recall_.5threshold': recall_score(labels, pred_labels),
+            'precision_.5threshold': precision_score(labels, pred_labels),
+            'f1_.5threshold': f1_score(labels, pred_labels),
+            'ks': ks,
+            'gmean': gmean,
+            'type1_acc': type1_acc,  # 加入type1_acc
+            'type2_acc': type2_acc,  # 加入type2_acc
+        }
     else:
         acc = (pred_labels == labels).mean()
         precision, recall, f1, support = precision_recall_fscore_support(labels, pred_labels)
@@ -93,14 +88,30 @@ def calc_classification_metrics_hf(p: EvalPrediction, save_cm_fig_dir=None):
     return result
 
 
-def calc_classification_metrics_benchmark(y_true, y_pred, y_pred_prob):
-    acc = accuracy_score(y_true, y_pred)
-    auc = roc_auc_score(y_true, y_pred_prob)
-    fpr, tpr, thresholds = roc_curve(y_true, y_pred_prob)
-    ks = max(tpr - fpr)
-    cm = confusion_matrix(y_true, y_pred)
-    type_1_acc = cm[0, 0] / cm[0, :].sum()
-    type_2_acc = cm[1, 1] / cm[1, :].sum()
-    g_mean = sqrt(type_1_acc * type_2_acc)
+def calc_classification_metrics_benchmark(model_name, y_true, y_pred, y_pred_prob):
+    # 计算混淆矩阵
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+    # 计算基本指标
+    metrics = {
+        'model': model_name,
+        'accuracy': accuracy_score(y_true, y_pred),
+        'roc_auc': roc_auc_score(y_true, y_pred_prob),
+        'recall': recall_score(y_true, y_pred),
+        'precision': precision_score(y_true, y_pred),
+        'f1': f1_score(y_true, y_pred),
+    }
 
-    return acc, auc, ks, g_mean, type_1_acc, type_2_acc
+    # 计算KS统计量
+    def calculate_ks_statistic(y_true, y_pred_prob):
+        return ks_2samp(y_pred_prob[y_true == 1], y_pred_prob[y_true == 0]).statistic
+
+    metrics['ks'] = calculate_ks_statistic(y_true, y_pred_prob)
+
+    # 计算G-mean
+    metrics['gmean'] = np.sqrt(metrics['recall'] * metrics['precision'])
+
+    metrics['type1_acc'] = tn / (tn + fp)
+    metrics['type2_acc'] = tp / (tp + fn)
+    metrics.update({'tn': tn.item(), 'fp': fp.item(), 'fn': fn.item(), 'tp': tp.item()})
+
+    return metrics

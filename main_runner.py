@@ -87,7 +87,9 @@ def main(language_model_args: LanguageModelArguments,
         freeze_language_model_params=language_model_args.freeze_language_model_params,
         mode=TASK_MODE_DICT[task],
         contrastive_targets=training_args.contrastive_targets,
-        cat_vocab_size=cat_tokenizer.vocab_size if cat_tokenizer is not None else None
+        cat_vocab_size=cat_tokenizer.vocab_size if cat_tokenizer is not None else None,
+        clncp_ensemble_method=training_args.clncp_ensemble_method,
+        num_cat_language_model_hyperparameters=language_model_args.num_cat_language_model_hyperparameters,
     )
     if task == 'pretrain':
         if training_args.pretrained_model_dir is None:

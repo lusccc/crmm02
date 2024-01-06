@@ -18,6 +18,8 @@ class CLNCPConfig(PretrainedConfig):
                  mode=None,
                  contrastive_targets=None,
                  cat_vocab_size=None,
+                 clncp_ensemble_method=None,
+                 num_cat_language_model_hyperparameters=None,
                  **kwargs):
         super().__init__(**kwargs)
         # unique label count
@@ -36,3 +38,5 @@ class CLNCPConfig(PretrainedConfig):
         self.mode = mode
         self.contrastive_targets = contrastive_targets
         self.cat_vocab_size = cat_vocab_size
+        self.clncp_ensemble_method = clncp_ensemble_method
+        self.num_cat_language_model_hyperparameters = num_cat_language_model_hyperparameters

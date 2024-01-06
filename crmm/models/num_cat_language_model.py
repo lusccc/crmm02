@@ -3,18 +3,35 @@ from transformers import BertConfig, BertModel
 
 from crmm.models.clncp_config import CLNCPConfig
 
+default_hp = dict(
+    hidden_size=512,
+    num_hidden_layers=8,
+    num_attention_heads=8,
+    intermediate_size=2048
+)
+
+
 class NumCatLanguageModelConfig(BertConfig):
     pass
+
 
 class NumCatLanguageModel(nn.Module):
     def __init__(self, clncp_config: CLNCPConfig):
         super(NumCatLanguageModel, self).__init__()
+        self.hyperparameters = clncp_config.num_cat_language_model_hyperparameters
         self.config = NumCatLanguageModelConfig(
+            hidden_size=self.hyperparameters[0],
+            num_hidden_layers=self.hyperparameters[1],
+            num_attention_heads=self.hyperparameters[2],
+            intermediate_size=self.hyperparameters[3],
             # hidden_size=256,
-            hidden_size=512,
-            num_hidden_layers=6,
-            num_attention_heads=8,
-            intermediate_size=2048,
+            # num_hidden_layers=4,
+            # num_attention_heads=4,
+            # intermediate_size=1024,
+            # hidden_size=768,
+            # num_hidden_layers=12,
+            # num_attention_heads=12,
+            # intermediate_size=3072,
             vocab_size=clncp_config.cat_vocab_size,
             hidden_act="gelu",
             hidden_dropout_prob=0.1,

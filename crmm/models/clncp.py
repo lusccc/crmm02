@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from transformers import PreTrainedModel
 from transformers.models.clip.modeling_clip import clip_loss
 from transformers.utils import logging
@@ -12,6 +11,7 @@ from crmm.models.layer_utils import create_classifier, hf_loss_func
 logger = logging.get_logger('transformers')
 
 # the proposed CLNCP: Contrastive Language–Numeric-Category Pretraining
+# TODO  change to CLNC-MTL: Contrastive Language–Numeric-Category multitask learning
 
 TASK_MODE_DICT = {
     'pretrain': 'contrastive',
@@ -24,32 +24,35 @@ TASK_MODE_DICT = {
 
 
 # @@@ try 1: stacking
-class EnsembleModel(nn.Module):
+# TODO, calc Correlation coefficient with extracted feature?
+class StackingEnsembleModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.layer1 = nn.Linear(4, 32)
         self.layer2 = nn.Linear(32, 2)
         self.loss_fn = nn.CrossEntropyLoss()
 
-    def forward(self, x, labels):
-        x = F.gelu(self.layer1(x))
+    def forward(self, logits1, logits2, labels):
+        x = torch.cat([torch.sigmoid(logits1), torch.sigmoid(logits2)], dim=-1)
+        # x = F.gelu(self.layer1(x))
+        x = self.layer1(x)
         x = self.layer2(x)
         loss = self.loss_fn(x, labels)
         return loss, x
 
 
 # @@@ try 2: weighted avg
-# class EnsembleModel(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.w1 = nn.Parameter(torch.ones(1))
-#         self.w2 = nn.Parameter(torch.ones(1))
-#         self.loss_fn = nn.CrossEntropyLoss()
-#
-#     def forward(self, logits1, logits2, labels):
-#         combined_logits = torch.sigmoid(self.w1)* logits1 + torch.sigmoid(self.w2)*logits2
-#         loss = self.loss_fn(combined_logits, labels)
-#         return loss, combined_logits
+class WeightedAvgEnsembleModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.w1 = nn.Parameter(torch.ones(1))
+        self.w2 = nn.Parameter(torch.ones(1))
+        self.loss_fn = nn.CrossEntropyLoss()
+
+    def forward(self, logits1, logits2, labels):
+        combined_logits = torch.sigmoid(self.w1)* logits1 + torch.sigmoid(self.w2)*logits2
+        loss = self.loss_fn(combined_logits, labels)
+        return loss, combined_logits
 
 
 class CLNCPPreTrainedModel(PreTrainedModel):
@@ -77,7 +80,16 @@ class CLNCP(CLNCPPreTrainedModel):
         self.logit_scale = nn.Parameter(torch.tensor(2.6592))  # value copied from configuration_clip.py
         self.stop_contrastive = False
 
-        self.ensemble_model = EnsembleModel()
+        if self.config.clncp_ensemble_method == 'weighted_avg':
+            self.ensemble_model = WeightedAvgEnsembleModel()
+        elif self.config.clncp_ensemble_method == 'stacking':
+            self.ensemble_model = StackingEnsembleModel()
+        elif self.config.clncp_ensemble_method == 'no_ensemble':
+            self.ensemble_model = None
+        elif self.config.clncp_ensemble_method == 'only_nll_pair_match':
+            self.ensemble_model = None
+        else:
+            raise ValueError('clncp_ensemble_method not specified')
 
         self.post_init()
 
@@ -174,7 +186,7 @@ class CLNCP(CLNCPPreTrainedModel):
 
             # @@@@ try 1:
             nll_features = self.feature_extractors['text'](inputs['nll'])
-            nll_cts_loss, nll_cts_logits = self.contrastive_step(m1_features, nll_features, calc_loss=False)
+            _, nll_cts_logits = self.contrastive_step(m1_features, nll_features, calc_loss=False)
 
             # @@@ try 1.1:
             # cls_probs = torch.softmax(cls_logits, dim=1)
@@ -185,16 +197,14 @@ class CLNCP(CLNCPPreTrainedModel):
             # # 使用 torch.max 获取两个 tensor 每个位置的最大值
             # ensemble_logits, _ = torch.max(torch.stack((cls_logits, nll_cts_logits)), dim=0)
 
-            # @@@ try 1.3:
-            concat_logits = torch.cat([torch.sigmoid(cls_logits), nll_cts_logits], dim=-1)
-            ensemble_loss, ensemble_logits = self.ensemble_model(concat_logits, inputs['labels'])
-
-            # @@@ try 1.4:
-            # ensemble_loss, ensemble_logits = self.ensemble_model(cls_logits, nll_cts_logits, inputs['labels'])
-
-            return cts_loss + cls_loss + ensemble_loss, ensemble_logits
-            # return cts_loss + ensemble_loss, ensemble_logits
-            # return cts_loss + cls_loss , cls_logits
+            if self.ensemble_model is not None:
+                ensemble_loss, ensemble_logits = self.ensemble_model(cls_logits, nll_cts_logits, inputs['labels'])
+                return cts_loss + cls_loss + ensemble_loss, ensemble_logits
+                # return cts_loss + ensemble_loss, ensemble_logits
+            elif self.config.clncp_ensemble_method == 'no_ensemble':
+                return cts_loss + cls_loss , cls_logits
+            elif self.config.clncp_ensemble_method == 'only_nll_pair_match':
+                return cts_loss, nll_cts_logits
 
     def contrastive_step(self, m1_features, m2_features, calc_loss=True):
         m1_features = normalize_features(m1_features)

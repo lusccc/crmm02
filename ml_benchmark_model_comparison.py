@@ -68,10 +68,8 @@ class MLBenchmark:
         X_val_scaled = scaler.transform(X_val)
         X_test_scaled = scaler.transform(X_test)
 
-        # Create a DataFrame to store all the results
-        res_cols = ['Model', 'Acc', 'AUC', 'KS', 'G-mean', 'Type-I Acc', 'Type-II Acc']
-        results_df = pd.DataFrame(columns=res_cols)
 
+        results_list = []
         for name, model in models:
             if name in ['SVM', 'KNN', 'LogR']:  # Use scaled data for SVM and KNN
                 model.fit(X_train_scaled, y_train)
@@ -86,12 +84,11 @@ class MLBenchmark:
                 y_pred = model.predict(X_test)
                 y_pred_prob = model.predict_proba(X_test)[:, 1]  # Probability of positive class
 
-            acc, auc, ks, g_mean, type_1_acc, type_2_acc = calc_classification_metrics_benchmark(y_test, y_pred, y_pred_prob)
-            results_df = pd.concat(
-                [results_df, pd.DataFrame([[name, acc, auc, ks, g_mean, type_1_acc, type_2_acc]], columns=res_cols)]
-            )
+            result = calc_classification_metrics_benchmark(name, y_test, y_pred, y_pred_prob)
+            results_list.append(result)
 
         # Write the results to an Excel file
+        results_df = pd.DataFrame(results_list)
         results_df.to_excel(self.data_args.excel_path, index=False)
 
 
