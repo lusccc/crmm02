@@ -369,6 +369,8 @@ def nemenyi_plot_multiple(data_sets, titles, alpha=0.05, row=2, col=2):
                 f' (test_stat: {test_stat:.4f}, p_value: {p_value:.4f})'
             )
 
+        print(f'{title}, (test_stat: {test_stat:.4f}, p_value: {p_value:.4f})')
+
         # compute the critical difference
         q_alpha = qsturng(1 - alpha, len(data), np.inf) / np.sqrt(2)
         cd = q_alpha * np.sqrt((n_methods * (n_methods + 1)) / (6 * n_datasets))

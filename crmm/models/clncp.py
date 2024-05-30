@@ -12,6 +12,7 @@ logger = logging.get_logger('transformers')
 
 # the proposed CLNCP: Contrastive Language–Numeric-Category Pretraining
 # TODO  change to CLNC-MTL: Contrastive Language–Numeric-Category multitask learning
+# TODO  change to CNCT-MTL Contrastive Numeric-Category-Text multitask learning
 
 TASK_MODE_DICT = {
     'pretrain': 'contrastive',

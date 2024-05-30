@@ -1,15 +1,11 @@
+import numpy as np
 import pandas as pd
-
-from nemenyi_plot_tool import nemenyi_plot_multiple
-
-"""
-FOR ROLLING SPLIT DATASET EXP RESULTS
-两个数据集rolling的结果，每一个数据集rolling划分可得四个数据集，那么共有8个数据集。
-8个数据集的结果我都放在all_results里了
-"""
+import umap
+from sklearn.decomposition import PCA
 
 all_results = [
     """
+    Ideal 1  1  1  1  1
     CMML	0.7658 	0.8474 	0.5694 	0.6865 	0.8223 
     CMML-NoSA	0.7660 	0.8496 	0.5772 	0.6981 	0.8146 
     CMML-NoCS	0.7115 	0.8066 	0.5137 	0.7846 	0.6593 
@@ -28,6 +24,7 @@ all_results = [
     AutoInt	0.6846 	0.8241 	0.5427 	0.3046 	0.9560 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.8457 	0.9109 	0.7042 	0.7704 	0.8969 
     CMML-NoSA	0.8401 	0.9140 	0.7097 	0.8282 	0.8481 
     CMML-NoCS	0.8198 	0.8980 	0.6802 	0.7801 	0.8468 
@@ -43,9 +40,10 @@ all_results = [
     RF	0.8535 	0.9133 	0.7130 	0.7768 	0.9057 
     GATE	0.7457 	0.8355 	0.5394 	0.6819 	0.7890 
     TabTransformer	0.7663 	0.8351 	0.5562 	0.7594 	0.7711 
-    AutoInt	0.7616 	0.8539 	0.5944 	0.5671 	0.8939  
+    AutoInt	0.7616 	0.8539 	0.5944 	0.5671 	0.8939 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.8589 	0.9287 	0.7381 	0.8103 	0.8882 
     CMML-NoSA	0.8557 	0.9291 	0.7411 	0.8025 	0.8880 
     CMML-NoCS	0.8276 	0.9023 	0.6725 	0.7454 	0.8774 
@@ -64,6 +62,7 @@ all_results = [
     AutoInt	0.8185 	0.8811 	0.6446 	0.7564 	0.8562 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.8456 	0.9067 	0.7065 	0.8615 	0.8270 
     CMML-NoSA	0.8367 	0.9040 	0.6959 	0.8377 	0.8357 
     CMML-NoCS	0.8294 	0.9029 	0.6958 	0.8510 	0.8041 
@@ -82,6 +81,7 @@ all_results = [
     AutoInt	0.8124 	0.8814 	0.6619 	0.8468 	0.7721 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.8833 	0.9411 	0.7600 	0.7916 	0.9313 
     CMML-NoSA	0.8862 	0.9451 	0.7722 	0.7966 	0.9330 
     CMML-NoCS	0.8792 	0.9366 	0.7608 	0.8259 	0.9071 
@@ -100,6 +100,7 @@ all_results = [
     AutoInt	0.8797 	0.9377 	0.7777 	0.8239 	0.9089 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.9300 	0.9664 	0.8664 	0.8909 	0.9473 
     CMML-NoSA	0.9260 	0.9648 	0.8714 	0.8715 	0.9500 
     CMML-NoCS	0.9265 	0.9675 	0.8648 	0.8847 	0.9449 
@@ -118,6 +119,7 @@ all_results = [
     AutoInt	0.9269 	0.9655 	0.8691 	0.8697 	0.9520 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.9199 	0.9540 	0.8283 	0.8682 	0.9456 
     CMML-NoSA	0.9204 	0.9536 	0.8301 	0.8699 	0.9435 
     CMML-NoCS	0.9197 	0.9632 	0.8299 	0.8817 	0.9372 
@@ -136,6 +138,7 @@ all_results = [
     AutoInt	0.9149 	0.9586 	0.8247 	0.8593 	0.9404 
     """,
     """
+    Ideal 1  1  1  1  1
     CMML	0.9118 	0.9581 	0.8269 	0.8899 	0.9292 
     CMML-NoSA	0.9064 	0.9617 	0.8198 	0.8822 	0.9257 
     CMML-NoCS	0.9013 	0.9660 	0.8177 	0.8843 	0.9148 
@@ -155,54 +158,72 @@ all_results = [
     """
 ]
 
+import matplotlib.pyplot as plt
+from sklearn.manifold import MDS, TSNE
 
-def parse_results(results):
-    data_lines = results.strip().split("\n")
-    parsed_data = [line.split() for line in data_lines]
-    models = [line[0] for line in parsed_data]
-    acc = [float(line[1]) for line in parsed_data]
-    auc = [float(line[2]) for line in parsed_data]
-    KS = [float(line[3]) for line in parsed_data]
-    Type1_ACC = [float(line[4]) for line in parsed_data]
-    Type2_ACC = [float(line[5]) for line in parsed_data]
-    return pd.DataFrame(
-        {
-            "Model": models,
-            "ACC": acc,
-            "AUC": auc,
-            "KS": KS,
-            "Type1-ACC": Type1_ACC,
-            "Type2-ACC": Type2_ACC,
-        }
-    )
-
-
-def parse_df(all_results, metric, rank_data=False):
-    n_dataset = len(all_results)
-    all_res_df = []
-    for res in all_results:
-        res_df = parse_results(res)
-        all_res_df.append(res_df)
-    merged_res_df = pd.concat(all_res_df, axis=1, keys=[f'{i}' for i in range(n_dataset)])
-    merged_res_df.columns = ['_'.join(col).strip() for col in merged_res_df.columns.values]
-    metric_res_all_mdl_dt = merged_res_df[['0_Model'] + [f'{i}_{metric}' for i in range(n_dataset)]]
-    if rank_data:
-        # 对每一列进行排名
-        rank_df = metric_res_all_mdl_dt.iloc[:, 1:].rank(method='min', ascending=False)
-
-        # 将排名结果替换原 dataframe 中的准确率结果
-        metric_res_all_mdl_dt.iloc[:, 1:] = rank_df
-        # 对每一行求平均值
-        metric_res_all_mdl_dt['Avg_Rank'] = metric_res_all_mdl_dt.iloc[:, 1:].mean(axis=1)
-        print(metric_res_all_mdl_dt.iloc[:, 1:].values.tolist())
-    return metric_res_all_mdl_dt
-
-res_dicts = []
+# Given metrics
 metrics = ['ACC', 'AUC', 'KS', 'Type1-ACC', 'Type2-ACC']
-for metric in metrics:
-    res_df = parse_df(all_results, metric)
-    res_dict = res_df.set_index('0_Model').T.to_dict('list')
-    res_dicts.append(res_dict)
 
-# nemenyi_plot_multiple(res_dicts, [f"({chr(ord('e') + i)}) {m}" for i, m in enumerate(metrics)], row=4, col=1)
-nemenyi_plot_multiple(res_dicts, [f"({chr(ord('a') + i)}) {m}" for i, m in enumerate(metrics)], row=3, col=2)
+
+# Parse the input data
+def parse_results(results):
+    models, data = [], []
+    for line in results.strip().split('\n'):
+        parts = line.split()
+        models.append(parts[0])
+        data.append([float(x) for x in parts[1:]])
+    return models, data
+
+
+# Assuming 'all_results' is a list of strings
+# and each string contains the results for all models on a single dataset.
+model_vectors = {model: [] for model in parse_results(all_results[0])[0]}  # Initialize dictionary
+
+for block in all_results:
+    models, data = parse_results(block)
+    for model, scores in zip(models, data):
+        model_vectors[model].extend(scores)
+
+# Now create a list of vectors and a list of model names
+vectors = []
+model_names = []
+for model, vector in model_vectors.items():
+    model_names.append(model)
+    vectors.append(vector)
+
+df = pd.DataFrame(model_vectors,)
+# Perform MDS
+mds = MDS(n_components=2, random_state=42)
+results = mds.fit_transform(vectors)
+
+# pca = PCA(n_components=2)
+# results = pca.fit_transform(vectors)
+
+# tsne = TSNE(n_components=2, random_state=42, perplexity=10)
+# results = tsne.fit_transform(np.array(vectors))
+
+# umap_reducer = UMAP(n_components=2)
+# results = umap_reducer.fit_transform(vectors)
+
+# Plot the results
+plt.figure(figsize=(12, 8))
+plt.scatter(results[:, 0], results[:, 1])
+
+for i, txt in enumerate(model_names):
+    plt.annotate(txt, (results[i, 0]+.02, results[i, 1]-0.01))
+
+# Find the coordinates of the 'Ideal' model
+ideal_index = model_names.index('Ideal')
+ideal_coords = results[ideal_index]
+
+# Draw concentric circles around the 'Ideal' model
+radii = [0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4, 1.6, 1.8, 2, 2.2]  # Adjust the radii as needed
+for radius in radii:
+    circle = plt.Circle(ideal_coords, radius, fill=False, linestyle='--', linewidth=.7)
+    plt.gca().add_artist(circle)
+
+plt.xlabel('MDS Dimension 1')
+plt.ylabel('MDS Dimension 2')
+# plt.title('MDS Visualization of Model Performance')
+plt.grid(False)
+plt.show()
