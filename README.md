@@ -30,25 +30,14 @@ pip install -r requirements.txt
 
 ### Model Training
 
-1. Pretraining stage:
+Example run script:
 ```bash
-python main_runner.py --task pretrain \
-    --data_path ./data/cr2 \
-    --dataset_name cr2 \
-    --dataset_split_strategy rolling_window \
-    --train_years "2010,2011,2012" \
-    --test_years "2013" \
-    --use_modality "num,cat,text"
+python main_runner.py --root_dir ./exps --task "multi_task_classification" --per_device_train_batch_size 176 --num_train_epochs 100 --data_path "./data/cr2" --dataset_name "cr2" --dataset_split_strategy "rolling_window" --train_years "2010,2011,2012" --test_years "2013" --freeze_language_model_params True --use_modality "num,cat,text" --fuse_modality "num,cat" --contrastive_targets "joint,text" --language_model_name "mrm8488/distilroberta-finetuned-financial-news-sentiment-analysis" --load_hf_model_from_cache True --save_excel_path "./excel/cr2_res_rolling_window_#2010,2011,2012#_#2013#_epoch_test.xlsx" --save_hist_eval_csv_path "./hist_csv/hist_eval_res_cr2_2013_noclspademb_stacking_numLN.csv"
 ```
 
+For more run scripts, please refer to `run_v2.sh` and `run_exps.py`.
 
-2. Finetuning stage:
-```bash
-python main_runner.py --task finetune_classification \
-    --data_path ./data/cr2 \
-    --pretrained_model_dir "path/to/pretrained/model" \
-    --dataset_split_strategy rolling_window
-```
+We suggest that you can use AI tools such as Cursor to help you understand this repository
 
 ### How to Cite
 If you find this work useful in your research, please consider citing:
